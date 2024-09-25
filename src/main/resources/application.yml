@@ -1,0 +1,59 @@
+spring:
+  application:
+    name: upstox-api-test
+  thymeleaf:
+    cache: false
+    check-template-location: true
+    mode: HTML
+
+server:
+  port: 8082
+
+logging:
+  level:
+    com.tradebook: DEBUG
+    org.mongodb: OFF
+    com.mongodb: OFF
+
+trade:
+  rr-ratio: 1
+
+app:
+  config:
+    scrips:
+      - name: NIFTY
+        trading-symbol: NSE_INDEX|Nifty 50
+        lot-size: 25
+        strike-diff: 50
+        expiry-day: THURSDAY
+        exchanges:
+          - NSE
+          - NFO
+
+      - name: BANKNIFTY
+        trading-symbol: NSE_INDEX|Nifty Bank
+        lot-size: 15
+        strike-diff: 100
+        expiry-day: WEDNESDAY
+        exchanges:
+          - NSE
+          - NFO
+
+      - name: FINNIFTY
+        trading-symbol: NSE_INDEX|Nifty Bank
+        lot-size: 25
+        strike-diff: 50
+        expiry-day: TUESDAY
+        exchanges:
+          - NSE
+          - NFO
+
+    platform:
+      asset-url: https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz
+      holiday-list-url: https://api.upstox.com/v2/market/holidays
+      asset-download-path: 'D:\\Assets\\'
+      asset-name-date-format: 'yyyyMMMdd'
+      asset-download-name-prefix: 'NSE_Contracts_'
+      asset-download-name-suffix: '.json'
+      trading-symbol-pattern: '<instrumentName> <strike> <instrumentType> <expiryDate>'
+      trading-symbol-date-format: 'dd MMM yy'

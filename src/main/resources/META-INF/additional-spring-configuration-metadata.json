@@ -1,0 +1,23 @@
+{
+  "properties": [
+    {
+      "name": "app.scrips.NIFTY",
+      "type": "java.lang.String",
+      "description": "Nifty 50 index."
+    },
+    {
+      "name": "app.scrips.BANKNIFTY",
+      "type": "java.lang.String",
+      "description": "Nifty Bank index."
+    },
+    {
+      "name": "app.scrips.NIFTY.name",
+      "type": "java.lang.String",
+      "description": "Name of underlying."
+    },
+    {
+      "name": "app.scrips.NIFTY.lotSize",
+      "type": "java.lang.String",
+      "description": "Lot-size of underlying."
+    }
+  ] }
