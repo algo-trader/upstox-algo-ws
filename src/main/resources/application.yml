@@ -11,7 +11,7 @@ server:
 
 logging:
   level:
-    com.tradebook: DEBUG
+    com.algo: INFO
     org.mongodb: OFF
     com.mongodb: OFF
 

@@ -2,17 +2,28 @@ package com.algo.upstox.api.websocket;
 
 import com.algo.upstox.api.events.FeedMessageReceivedEvent;
 import com.algo.upstox.api.events.FeedResponseEventPublisher;
+import com.algo.upstox.config.AppPropertyConfig.Scrip;
 import com.algo.upstox.model.DataObjectDto;
+import com.algo.upstox.model.PlaceOrderResponseDto;
 import com.algo.upstox.model.SubscriptionRequestDto;
-import com.algo.upstox.model.TaskEnum;
 import com.algo.upstox.model.TaskListDto;
+import com.algo.upstox.model.documents.BreakoutTradeDto;
+import com.algo.upstox.model.documents.TradeDetailsDto;
 import com.algo.upstox.model.documents.UserPositionDto;
+import com.algo.upstox.model.platform.IndexEnum;
 import com.algo.upstox.service.BreakoutTradeService;
+import com.algo.upstox.service.PlaceOrderService;
 import com.algo.upstox.service.PositionService;
 import com.algo.upstox.service.UserSubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.upstox.api.PlaceOrderRequest.ProductEnum;
+import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed;
+import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed.Feed;
 import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed.FeedResponse;
+import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed.FullFeed;
+import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed.IndexFullFeed;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
@@ -20,10 +31,19 @@ import org.java_websocket.handshake.ServerHandshake;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.algo.upstox.constants.AppConstants.METHOD;
 import static com.algo.upstox.constants.AppConstants.MODE_FULL;
+import static com.algo.upstox.constants.AppConstants.ORDER_PLACEMENT_SUCCESS;
+import static com.algo.upstox.model.documents.TradeStatusEnum.EXECUTED;
+import static com.algo.upstox.model.documents.TradeStatusEnum.PLANNED;
+import static com.algo.upstox.model.documents.TradeStatusEnum.SQUARED_OFF;
 
 @Slf4j
 public class AppWebSocketClient extends WebSocketClient {
@@ -31,24 +51,41 @@ public class AppWebSocketClient extends WebSocketClient {
     private final ObjectMapper objectMapper;
     private final FeedResponseEventPublisher feedResponseEventPublisher;
     private final PositionService positionService;
+    private final PlaceOrderService placeOrderService;
     private final String sessionId;
     private final TaskListDto taskList;
+    private final Map<IndexEnum, Scrip> scrips;
+    private final BreakoutTradeService breakoutTradeService;
 
     private UserPositionDto currentPosition;
-    private final BreakoutTradeService breakoutTradeService;
+    @Setter
+    private List<BreakoutTradeDto> plannedTrades;
+
+    public List<BreakoutTradeDto> getPlannedTrades() {
+        Optional.ofNullable(plannedTrades)
+                .orElseGet(() -> {
+                    Optional.ofNullable(breakoutTradeService.retrieveTrade(sessionId))
+                            .ifPresent(this::setPlannedTrades);
+                    return plannedTrades;
+                });
+        log.debug("Planned Trade - {}", plannedTrades);
+        return plannedTrades;
+    }
 
 
     public AppWebSocketClient(URI serverUri, UserSubscriptionService subscriptionService,
                               ObjectMapper objectMapper, FeedResponseEventPublisher feedResponseEventPublisher,
-                              PositionService positionService, TaskListDto taskList,
-                              String sessionId, BreakoutTradeService breakoutTradeService) {
+                              PositionService positionService, PlaceOrderService placeOrderService, TaskListDto taskList,
+                              String sessionId, Map<IndexEnum, Scrip> scrips, BreakoutTradeService breakoutTradeService) {
         super(serverUri);
         this.subscriptionService = subscriptionService;
         this.objectMapper = objectMapper;
         this.feedResponseEventPublisher = feedResponseEventPublisher;
         this.positionService = positionService;
+        this.placeOrderService = placeOrderService;
         this.taskList = taskList;
         this.sessionId = sessionId;
+        this.scrips = scrips;
         this.breakoutTradeService = breakoutTradeService;
     }
 
@@ -56,9 +93,6 @@ public class AppWebSocketClient extends WebSocketClient {
     public void onOpen(ServerHandshake serverHandshake) {
         log.info("Websocket opened");
         sendSubscriptionRequest(this, sessionId);
-        if (this.taskList.getTasks().contains(TaskEnum.TRADE)) {
-            managePositions(sessionId);
-        }
     }
 
     @Override
@@ -67,26 +101,112 @@ public class AppWebSocketClient extends WebSocketClient {
 
     @Override
     public void onMessage(ByteBuffer buffer) {
-        log.info("Received binary message: {}", buffer);
+        log.debug("Received binary message: {}", buffer);
         var response = handleBinaryMessage(buffer);
+        var performingOperation = new AtomicBoolean(false);
+        getPlannedTrades()
+                .forEach(plannedTrade -> {
+                    if (!performingOperation.get()) {
+                        log.info("{} Performing operation start ", System.currentTimeMillis());
+                        performingOperation.set(true);
+                        var scrip = scrips.get(plannedTrade.getInstrument());
+                        var data = response.getFeedsMap().get(scrip.getTradingSymbol());
+                        log.debug("Feed data for {} - {}", scrip.getTradingSymbol(), data);
+                        verifyAndExecutePlannedTrade(plannedTrade, data);
+                        verifyAndExecuteStopLoss(plannedTrade, data);
+                        performingOperation.set(false);
+                        log.info("{} Performing operation end ", System.currentTimeMillis());
+                    }
+                });
 
-        breakoutTradeService.retrieveTrade(sessionId)
-                .ifPresent(plannedTrade ->);
-
-        /*var data = response.getFeedsMap().get(NIFTY_SCRIP);
-        if (NEW == currentPosition.getPositionStatus()) {
-            currentPosition.setPositionStatus(BUILDING);
-            if (data.getFf().getIndexFF().getLtpc().getLtp() >= currentPosition.getEntryDetails().getLongEntryAt()) {
-                log.info("Place long position");
-                currentPosition = positionService.addTrade(sessionId, currentPosition.getEntryDetails(), TRADE_TYPE_LONG);
-            } else if (data.getFf().getIndexFF().getLtpc().getLtp() <= currentPosition.getEntryDetails().getShortEntryAt()) {
-                log.info("Place short position");
-                currentPosition = positionService.addTrade(sessionId, currentPosition.getEntryDetails(), TRADE_TYPE_SHORT);
-            } else {
-                currentPosition.setPositionStatus(NEW);
-            }
-        }*/
         feedResponseEventPublisher.publishEvent(new FeedMessageReceivedEvent(response));
+    }
+
+    private void verifyAndExecutePlannedTrade(BreakoutTradeDto plannedTrade, MarketDataFeed.Feed data) {
+        Optional.ofNullable(data)
+                .map(Feed::getFf)
+                .map(FullFeed::getIndexFF)
+                .map(IndexFullFeed::getLtpc)
+                .ifPresent(ltpc -> {
+                    Optional.ofNullable(plannedTrade.getLongTrade())
+                            .filter(lt -> PLANNED == lt.getTradeStatus())
+                            .filter(lt -> ltpc.getLtp() > plannedTrade.getLongAbove())
+                            .ifPresent(longTrade -> {
+                                log.info("Long trade plan execution matched");
+                                performTradeExecution(longTrade, plannedTrade);
+                            });
+
+                    Optional.ofNullable(plannedTrade.getShortTrade())
+                            .filter(st -> PLANNED == st.getTradeStatus())
+                            .filter(st -> ltpc.getLtp() < plannedTrade.getShortBelow())
+                            .ifPresent(shortTrade -> {
+                                performTradeExecution(shortTrade, plannedTrade);
+                            });
+                });
+    }
+
+    private void verifyAndExecuteStopLoss(BreakoutTradeDto plannedTrade,  MarketDataFeed.Feed data) {
+        Optional.ofNullable(data)
+                .map(Feed::getFf)
+                .map(FullFeed::getIndexFF)
+                .map(IndexFullFeed::getLtpc)
+                .ifPresent(ltpc -> {
+                    Optional.ofNullable(plannedTrade.getLongTrade())
+                            .filter(lt -> EXECUTED == lt.getTradeStatus())
+                            .filter(lt -> ltpc.getLtp() < lt.getStopLossAtSpot())
+                            .ifPresent(longTrade -> {
+                                performSquareOffForStopLoss(longTrade, plannedTrade);
+                            });
+
+                    Optional.ofNullable(plannedTrade.getShortTrade())
+                            .filter(st -> EXECUTED == st.getTradeStatus())
+                            .filter(st -> ltpc.getLtp() > st.getStopLossAtSpot())
+                            .ifPresent(shortTrade -> {
+                                performSquareOffForStopLoss(shortTrade, plannedTrade);
+                            });
+                });
+    }
+
+    private void performSquareOffForStopLoss(TradeDetailsDto tradeDetails, BreakoutTradeDto plannedTrade) {
+        var orderResponse = placeSquareOffOrder(tradeDetails);
+
+        if (ORDER_PLACEMENT_SUCCESS.equals(orderResponse.getStatus())) {
+            tradeDetails.setTradeStatus(SQUARED_OFF);
+            saveTrade(plannedTrade);
+        }
+    }
+
+    private void performTradeExecution(TradeDetailsDto tradeDetails, BreakoutTradeDto plannedTrade) {
+//        var orderResponse = placeTradeOrder(tradeDetails);
+        var orderResponse = new PlaceOrderResponseDto();
+        try {
+            Thread.sleep(3000);
+        } catch (Exception e) {
+        }
+        orderResponse.setStatus(ORDER_PLACEMENT_SUCCESS);
+        if (ORDER_PLACEMENT_SUCCESS.equals(orderResponse.getStatus())) {
+            tradeDetails.setTradeStatus(EXECUTED);
+            saveTrade(plannedTrade);
+        }
+    }
+
+    private PlaceOrderResponseDto placeTradeOrder(TradeDetailsDto trade) {
+        if (Objects.isNull(trade.getProduct())) {
+            trade.setProduct(ProductEnum.I);
+        }
+        return placeOrderService.placeMarketOrder(trade.getTradingSymbol(), trade.getAvailableLots(),
+                        trade.getTransactionType().name(), sessionId, trade.getProduct());
+    }
+
+    private PlaceOrderResponseDto placeSquareOffOrder(TradeDetailsDto trade) {
+        /*if (Objects.isNull(trade.getProduct())) {
+            trade.setProduct(ProductEnum.I);
+        }
+        return placeOrderService.placeMarketOrder(trade.getTradingSymbol(), trade.getAvailableLots(),
+                reverseOf(trade.getTransactionType().name()), sessionId, trade.getProduct());*/
+        var orderResponse = new PlaceOrderResponseDto();
+        orderResponse.setStatus(ORDER_PLACEMENT_SUCCESS);
+        return orderResponse;
     }
 
     @Override
@@ -97,10 +217,6 @@ public class AppWebSocketClient extends WebSocketClient {
     @Override
     public void onError(Exception e) {
         log.error(e.getMessage(), e);
-    }
-
-    private void managePositions(String sessionId) {
-        currentPosition = positionService.fetchCurrentUserPosition(sessionId);
     }
 
     private void sendSubscriptionRequest(WebSocketClient client, String sessionId) {
@@ -137,5 +253,9 @@ public class AppWebSocketClient extends WebSocketClient {
             log.error(e.getMessage(), e);
             return FeedResponse.getDefaultInstance();
         }
+    }
+
+    private void saveTrade(BreakoutTradeDto trade) {
+        breakoutTradeService.updateTrade(trade);
     }
 }
