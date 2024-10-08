@@ -1,6 +1,7 @@
 package com.algo.upstox.api.websocket;
 
 import com.algo.upstox.api.events.FeedResponseEventPublisher;
+import com.algo.upstox.config.AppPropertyConfig;
 import com.algo.upstox.config.AppPropertyConfig.Scrip;
 import com.algo.upstox.model.TaskListDto;
 import com.algo.upstox.model.platform.IndexEnum;
@@ -34,6 +35,7 @@ public class WebsocketService {
     private final PlaceOrderService placeOrderService;
     private final Map<IndexEnum, Scrip> scrips;
     private final BreakoutTradeService breakoutTradeService;
+    private final AppPropertyConfig appPropertyConfig;
 
     public void initiateWebsocket(String sessionId, TaskListDto taskList) {
         var websocketApi = apiFactory.getApi(sessionId, WebsocketApi.class);
@@ -51,7 +53,7 @@ public class WebsocketService {
     private WebSocketClient createWebSocketClient(String uri, String sessionId, TaskListDto taskList) {
         return new AppWebSocketClient(URI.create(uri), subscriptionService, objectMapper,
                 feedResponseEventPublisher, positionService, placeOrderService,
-                taskList, sessionId, scrips, breakoutTradeService);
+                taskList, sessionId, scrips, breakoutTradeService, appPropertyConfig);
     }
 
 }

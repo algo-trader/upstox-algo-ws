@@ -2,6 +2,7 @@ package com.algo.upstox.api.websocket;
 
 import com.algo.upstox.api.events.FeedMessageReceivedEvent;
 import com.algo.upstox.api.events.FeedResponseEventPublisher;
+import com.algo.upstox.config.AppPropertyConfig;
 import com.algo.upstox.config.AppPropertyConfig.Scrip;
 import com.algo.upstox.model.DataObjectDto;
 import com.algo.upstox.model.PlaceOrderResponseDto;
@@ -31,22 +32,16 @@ import org.java_websocket.handshake.ServerHandshake;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.algo.upstox.constants.AppConstants.METHOD;
-import static com.algo.upstox.constants.AppConstants.MODE_FULL;
-import static com.algo.upstox.constants.AppConstants.ORDER_PLACEMENT_SUCCESS;
-import static com.algo.upstox.model.documents.TradeStatusEnum.EXECUTED;
-import static com.algo.upstox.model.documents.TradeStatusEnum.PLANNED;
-import static com.algo.upstox.model.documents.TradeStatusEnum.SQUARED_OFF;
+import static com.algo.upstox.config.AppPropertyConfig.TradeExecutionDirectionEnum.*;
+import static com.algo.upstox.constants.AppConstants.*;
+import static com.algo.upstox.model.documents.TradeStatusEnum.*;
 
 @Slf4j
 public class AppWebSocketClient extends WebSocketClient {
+
     private final UserSubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
     private final FeedResponseEventPublisher feedResponseEventPublisher;
@@ -57,7 +52,12 @@ public class AppWebSocketClient extends WebSocketClient {
     private final Map<IndexEnum, Scrip> scrips;
     private final BreakoutTradeService breakoutTradeService;
 
+    private final AppPropertyConfig appPropertyConfig;
+
     private UserPositionDto currentPosition;
+    private final AppPropertyConfig.TradeExecutionDirectionEnum tradeExecutionDirection;
+
+
     @Setter
     private List<BreakoutTradeDto> plannedTrades;
 
@@ -76,7 +76,8 @@ public class AppWebSocketClient extends WebSocketClient {
     public AppWebSocketClient(URI serverUri, UserSubscriptionService subscriptionService,
                               ObjectMapper objectMapper, FeedResponseEventPublisher feedResponseEventPublisher,
                               PositionService positionService, PlaceOrderService placeOrderService, TaskListDto taskList,
-                              String sessionId, Map<IndexEnum, Scrip> scrips, BreakoutTradeService breakoutTradeService) {
+                              String sessionId, Map<IndexEnum, Scrip> scrips, BreakoutTradeService breakoutTradeService,
+                              AppPropertyConfig appPropertyConfig) {
         super(serverUri);
         this.subscriptionService = subscriptionService;
         this.objectMapper = objectMapper;
@@ -87,6 +88,8 @@ public class AppWebSocketClient extends WebSocketClient {
         this.sessionId = sessionId;
         this.scrips = scrips;
         this.breakoutTradeService = breakoutTradeService;
+        this.appPropertyConfig = appPropertyConfig;
+        tradeExecutionDirection = appPropertyConfig.getPlatform().getTradeExecutionDirection();
     }
 
     @Override
@@ -104,18 +107,35 @@ public class AppWebSocketClient extends WebSocketClient {
         log.debug("Received binary message: {}", buffer);
         var response = handleBinaryMessage(buffer);
         var performingOperation = new AtomicBoolean(false);
+
         getPlannedTrades()
+                .stream()
+                .filter(trade -> Optional.ofNullable(trade.getShortTrade())
+                        .map(st -> st.getTradeStatus() == PLANNED)
+                        .orElse(false))
                 .forEach(plannedTrade -> {
                     if (!performingOperation.get()) {
-                        log.info("{} Performing operation start ", System.currentTimeMillis());
                         performingOperation.set(true);
                         var scrip = scrips.get(plannedTrade.getInstrument());
                         var data = response.getFeedsMap().get(scrip.getTradingSymbol());
                         log.debug("Feed data for {} - {}", scrip.getTradingSymbol(), data);
                         verifyAndExecutePlannedTrade(plannedTrade, data);
+                        performingOperation.set(false);
+                    }
+                });
+
+        getPlannedTrades()
+                .stream()
+                .filter(trade -> Optional.ofNullable(trade.getShortTrade())
+                        .map(st -> st.getTradeStatus() == EXECUTED)
+                        .orElse(false))
+                .forEach(plannedTrade -> {
+                    if (!performingOperation.get()) {
+                        performingOperation.set(true);
+                        var scrip = scrips.get(plannedTrade.getInstrument());
+                        var data = response.getFeedsMap().get(scrip.getTradingSymbol());
                         verifyAndExecuteStopLoss(plannedTrade, data);
                         performingOperation.set(false);
-                        log.info("{} Performing operation end ", System.currentTimeMillis());
                     }
                 });
 
@@ -128,42 +148,46 @@ public class AppWebSocketClient extends WebSocketClient {
                 .map(FullFeed::getIndexFF)
                 .map(IndexFullFeed::getLtpc)
                 .ifPresent(ltpc -> {
-                    Optional.ofNullable(plannedTrade.getLongTrade())
-                            .filter(lt -> PLANNED == lt.getTradeStatus())
-                            .filter(lt -> ltpc.getLtp() > plannedTrade.getLongAbove())
-                            .ifPresent(longTrade -> {
-                                log.info("Long trade plan execution matched");
-                                performTradeExecution(longTrade, plannedTrade);
-                            });
+                    if (tradeExecutionDirection == LONG || tradeExecutionDirection == BOTH) {
+                        Optional.ofNullable(plannedTrade.getLongTrade())
+                                .filter(lt -> PLANNED == lt.getTradeStatus())
+                                .filter(lt -> ltpc.getLtp() > plannedTrade.getLongAbove())
+                                .ifPresent(longTrade -> {
+                                    log.info("Long trade plan execution matched");
+                                    performTradeExecution(longTrade, plannedTrade);
+                                });
+                    }
 
-                    Optional.ofNullable(plannedTrade.getShortTrade())
-                            .filter(st -> PLANNED == st.getTradeStatus())
-                            .filter(st -> ltpc.getLtp() < plannedTrade.getShortBelow())
-                            .ifPresent(shortTrade -> {
-                                performTradeExecution(shortTrade, plannedTrade);
-                            });
+                    if (tradeExecutionDirection == SHORT || tradeExecutionDirection == BOTH) {
+                        Optional.ofNullable(plannedTrade.getShortTrade())
+                                .filter(st -> PLANNED == st.getTradeStatus())
+                                .filter(st -> ltpc.getLtp() < plannedTrade.getShortBelow())
+                                .ifPresent(shortTrade -> {
+                                    performTradeExecution(shortTrade, plannedTrade);
+                                });
+                    }
                 });
     }
 
-    private void verifyAndExecuteStopLoss(BreakoutTradeDto plannedTrade,  MarketDataFeed.Feed data) {
+    private void verifyAndExecuteStopLoss(BreakoutTradeDto plannedTrade, MarketDataFeed.Feed data) {
         Optional.ofNullable(data)
                 .map(Feed::getFf)
                 .map(FullFeed::getIndexFF)
                 .map(IndexFullFeed::getLtpc)
                 .ifPresent(ltpc -> {
-                    Optional.ofNullable(plannedTrade.getLongTrade())
-                            .filter(lt -> EXECUTED == lt.getTradeStatus())
-                            .filter(lt -> ltpc.getLtp() < lt.getStopLossAtSpot())
-                            .ifPresent(longTrade -> {
-                                performSquareOffForStopLoss(longTrade, plannedTrade);
-                            });
+                    if (tradeExecutionDirection == LONG || tradeExecutionDirection == BOTH) {
+                        Optional.ofNullable(plannedTrade.getLongTrade())
+                                .filter(lt -> EXECUTED == lt.getTradeStatus())
+                                .filter(lt -> ltpc.getLtp() < lt.getStopLossAtSpot())
+                                .ifPresent(longTrade -> performSquareOffForStopLoss(longTrade, plannedTrade));
+                    }
+                    if (tradeExecutionDirection == SHORT || tradeExecutionDirection == BOTH) {
+                        Optional.ofNullable(plannedTrade.getShortTrade())
+                                .filter(st -> EXECUTED == st.getTradeStatus())
+                                .filter(st -> ltpc.getLtp() > st.getStopLossAtSpot())
+                                .ifPresent(shortTrade -> performSquareOffForStopLoss(shortTrade, plannedTrade));
 
-                    Optional.ofNullable(plannedTrade.getShortTrade())
-                            .filter(st -> EXECUTED == st.getTradeStatus())
-                            .filter(st -> ltpc.getLtp() > st.getStopLossAtSpot())
-                            .ifPresent(shortTrade -> {
-                                performSquareOffForStopLoss(shortTrade, plannedTrade);
-                            });
+                    }
                 });
     }
 
@@ -177,8 +201,8 @@ public class AppWebSocketClient extends WebSocketClient {
     }
 
     private void performTradeExecution(TradeDetailsDto tradeDetails, BreakoutTradeDto plannedTrade) {
-//        var orderResponse = placeTradeOrder(tradeDetails);
-        var orderResponse = new PlaceOrderResponseDto();
+        var orderResponse = placeTradeOrder(tradeDetails);
+//        var orderResponse = new PlaceOrderResponseDto();
         try {
             Thread.sleep(3000);
         } catch (Exception e) {
@@ -195,18 +219,18 @@ public class AppWebSocketClient extends WebSocketClient {
             trade.setProduct(ProductEnum.I);
         }
         return placeOrderService.placeMarketOrder(trade.getTradingSymbol(), trade.getAvailableLots(),
-                        trade.getTransactionType().name(), sessionId, trade.getProduct());
+                trade.getTransactionType().name(), sessionId, trade.getProduct());
     }
 
     private PlaceOrderResponseDto placeSquareOffOrder(TradeDetailsDto trade) {
-        /*if (Objects.isNull(trade.getProduct())) {
+        if (Objects.isNull(trade.getProduct())) {
             trade.setProduct(ProductEnum.I);
         }
         return placeOrderService.placeMarketOrder(trade.getTradingSymbol(), trade.getAvailableLots(),
-                reverseOf(trade.getTransactionType().name()), sessionId, trade.getProduct());*/
-        var orderResponse = new PlaceOrderResponseDto();
+                reverseOf(trade.getTransactionType().name()), sessionId, trade.getProduct());
+       /* var orderResponse = new PlaceOrderResponseDto();
         orderResponse.setStatus(ORDER_PLACEMENT_SUCCESS);
-        return orderResponse;
+        return orderResponse;*/
     }
 
     @Override
@@ -256,6 +280,20 @@ public class AppWebSocketClient extends WebSocketClient {
     }
 
     private void saveTrade(BreakoutTradeDto trade) {
+        int index;
+        if ((index = getIndexByInstrument(trade.getInstrument())) != -1) {
+            log.info("Planned trade found for {} at index {}", trade.getInstrument(), index);
+            plannedTrades.set(index, trade);
+        }
         breakoutTradeService.updateTrade(trade);
+    }
+
+    private int getIndexByInstrument(IndexEnum instrument) {
+        for (int i = 0; i < plannedTrades.size(); i++) {
+            if (plannedTrades.get(i).getInstrument().equals(instrument)) {
+                return i;
+            }
+        }
+        return -1;
     }
 }

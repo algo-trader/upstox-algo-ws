@@ -5,7 +5,11 @@ spring:
     cache: false
     check-template-location: true
     mode: HTML
-
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: algo
 server:
   port: 8082
 
@@ -57,3 +61,4 @@ app:
       asset-download-name-suffix: '.json'
       trading-symbol-pattern: '<instrumentName> <strike> <instrumentType> <expiryDate>'
       trading-symbol-date-format: 'dd MMM yy'
+      trade-execution-direction: SHORT
