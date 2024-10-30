@@ -184,64 +184,67 @@ public class AppWebSocketClient extends WebSocketClient {
                 .map(IndexFullFeed::getLtpc)
                 .ifPresent(ltpc -> {
                     if (tradeExecutionDirection == LONG || tradeExecutionDirection == BOTH) {
-                        Optional.ofNullable(plannedTrade.getLongTrade())
-                                .filter(lt -> EXECUTED == lt.getTradeStatus())
-                                .filter(lt -> ltpc.getLtp() < lt.getStopLossAtSpot())
-                                .ifPresent(longTrade -> {
-                                    log.info("LONG : StopLoss condition has been met, triggering");
-                                    performSquareOffForStopLoss(longTrade, plannedTrade);
-                                });
+                        var tradeStatus = Optional.ofNullable(plannedTrade.getShortTrade())
+                                .map(TradeDetailsDto::getTradeStatus)
+                                .orElse(null);
+                        if (EXECUTED == tradeStatus) {
+                            Optional.ofNullable(plannedTrade.getLongTrade())
+                                    .ifPresent(longTrade -> {
+                                        if (ltpc.getLtp() < longTrade.getStopLossAtSpot()) {
+                                            log.info("LONG : StopLoss condition has been met, triggering");
+                                            performSquareOffForStopLoss(longTrade, plannedTrade);
+                                        } else if (ltpc.getLtp() > longTrade.getTarget1AtSpot()) {
+                                            log.info("LONG : Target 1 condition met, executing.");
+                                            performTargetOrder(longTrade, plannedTrade);
+                                        }
+                                    });
 
-                        Optional.ofNullable(plannedTrade.getLongTrade())
-                                .filter(lt -> EXECUTED == lt.getTradeStatus())
-                                .filter(lt -> ltpc.getLtp() > lt.getTarget1AtSpot())
-                                .ifPresent(longTrade -> {
-                                    log.info("LONG : Target 1 condition met, executing.");
-                                    performTargetOrder(longTrade, plannedTrade);
-                                });
-
-                        Optional.ofNullable(plannedTrade.getLongTrade())
-                                .filter(lt -> lt.getAvailableLots() > 0)
-                                .filter(lt -> TARGET_1 == lt.getTradeStatus())
-                                .ifPresent(longTrade -> {
-                                    if (ltpc.getLtp() > longTrade.getTarget2AtSpot()) {
-                                        log.info("LONG : Target 2 condition met, executing.");
-                                        performTargetOrder(longTrade, plannedTrade);
-                                    } else if (ltpc.getLtp() < longTrade.getStopLossAtSpot()) {
-                                        log.info("LONG : StopLoss after Target 1, executing.");
-                                        performSquareOffForStopLoss(longTrade, plannedTrade);
-                                    }
-                                });
+                        }
+                        if (TARGET_1 == tradeStatus) {
+                            Optional.ofNullable(plannedTrade.getLongTrade())
+                                    .filter(lt -> lt.getAvailableLots() > 0)
+                                    .ifPresent(longTrade -> {
+                                        if (ltpc.getLtp() > longTrade.getTarget2AtSpot()) {
+                                            log.info("LONG : Target 2 condition met, executing.");
+                                            performTargetOrder(longTrade, plannedTrade);
+                                        } else if (ltpc.getLtp() < longTrade.getStopLossAtSpot()) {
+                                            log.info("LONG : StopLoss after Target 1, executing.");
+                                            performSquareOffForStopLoss(longTrade, plannedTrade);
+                                        }
+                                    });
+                        }
                     }
 
                     if (tradeExecutionDirection == SHORT || tradeExecutionDirection == BOTH) {
-                        Optional.ofNullable(plannedTrade.getShortTrade())
-                                .filter(st -> EXECUTED == st.getTradeStatus())
-                                .filter(st -> ltpc.getLtp() > st.getStopLossAtSpot())
-                                .ifPresent(shortTrade -> {
-                                    log.info("SHORT : StopLoss condition has been met, triggering");
-                                    performSquareOffForStopLoss(shortTrade, plannedTrade);
-                                });
+                        var tradeStatus = Optional.ofNullable(plannedTrade.getShortTrade())
+                                .map(TradeDetailsDto::getTradeStatus)
+                                .orElse(null);
 
-                        Optional.ofNullable(plannedTrade.getShortTrade())
-                                .filter(st -> EXECUTED == st.getTradeStatus())
-                                .filter(st -> ltpc.getLtp() < st.getTarget1AtSpot())
-                                .ifPresent(shortTrade -> {
-                                    log.info("SHORT : Target 1 condition met, executing.");
-                                    performTargetOrder(shortTrade, plannedTrade);
-                                });
-
-                        Optional.ofNullable(plannedTrade.getShortTrade())
-                                .filter(st -> TARGET_1 == st.getTradeStatus())
-                                .ifPresent(shortTrade -> {
-                                    if (ltpc.getLtp() < shortTrade.getTarget2AtSpot()) {
-                                        log.info("SHORT : Target 2 condition met, executing.");
-                                        performTargetOrder(shortTrade, plannedTrade);
-                                    } else if (ltpc.getLtp() > shortTrade.getStopLossAtSpot()) {
-                                        log.info("SHORT : StopLoss after Target 1, executing.");
-                                        performSquareOffForStopLoss(shortTrade, plannedTrade);
-                                    }
-                                });
+                        if (EXECUTED == tradeStatus) {
+                            Optional.ofNullable(plannedTrade.getShortTrade())
+                                    .ifPresent(shortTrade -> {
+                                        if (ltpc.getLtp() > shortTrade.getStopLossAtSpot()) {
+                                            log.info("SHORT : StopLoss condition has been met, triggering");
+                                            performSquareOffForStopLoss(shortTrade, plannedTrade);
+                                        } else if (ltpc.getLtp() > shortTrade.getTarget1AtSpot()) {
+                                            log.info("SHORT : Target 1 condition met, executing.");
+                                            performTargetOrder(shortTrade, plannedTrade);
+                                        }
+                                    });
+                        }
+                        if (TARGET_1 == tradeStatus) {
+                            Optional.ofNullable(plannedTrade.getShortTrade())
+                                    .filter(st -> st.getAvailableLots() > 0)
+                                    .ifPresent(shortTrade -> {
+                                        if (ltpc.getLtp() < shortTrade.getTarget2AtSpot()) {
+                                            log.info("SHORT : Target 2 condition met, executing.");
+                                            performTargetOrder(shortTrade, plannedTrade);
+                                        } else if (ltpc.getLtp() > shortTrade.getStopLossAtSpot()) {
+                                            log.info("SHORT : StopLoss after Target 1, executing.");
+                                            performSquareOffForStopLoss(shortTrade, plannedTrade);
+                                        }
+                                    });
+                        }
                     }
                 });
     }
@@ -306,6 +309,8 @@ public class AppWebSocketClient extends WebSocketClient {
             lotsToBook = trade.getLotsToBookAtTarget1();
             remainingLots = trade.getAvailableLots() - lotsToBook;
 
+            log.debug("Lots to book - {}, Remaining Lots - {}", lotsToBook, remainingLots);
+
             if (remainingLots == 0) {
                 statusToBeUpdated = SQUARED_OFF_T1;
             } else {
@@ -320,9 +325,9 @@ public class AppWebSocketClient extends WebSocketClient {
 
         var order = orderService.placeMarketOrder(trade.getTradingSymbol(), lotsToBook,
                 txnType, sessionId, trade.getProduct());
-
+        trade.setAvailableLots(remainingLots);
         runUpdate(plannedTrade, trade, txnType, lotsToBook, statusToBeUpdated, order);
-
+        log.info("Updated Status - {}", statusToBeUpdated);
     }
 
     @Async
@@ -341,17 +346,18 @@ public class AppWebSocketClient extends WebSocketClient {
                 .ifPresent(orderId -> {
                     try {
                         var orderData = orderService.getCompletedOrder(orderId, sessionId);
+                        double existingAvg;
 
                         if (TRANSACTION_TYPE_BUY.equals(txnType)) {
-                            var existingAvg = trade.getBuyAvg();
+                            existingAvg = trade.getBuyAvg();
                             log.debug("Calculating new BUY average");
-                            trade.setBuyAvg(calculateAverage(trade, lotsToBook, orderData, existingAvg));
-
                         } else {
-                            var existingAvg = trade.getSellAvg();
+                            existingAvg = trade.getSellAvg();
                             log.debug("Calculating new SELL average");
-                            trade.setSellAvg(calculateAverage(trade, lotsToBook, orderData, existingAvg));
                         }
+
+                        calculateAndSetAverage(trade, lotsToBook, orderData, existingAvg, txnType);
+
                     } catch (Exception e) {
                         log.error("Unable to fetch order data", e);
                     }
@@ -369,7 +375,7 @@ public class AppWebSocketClient extends WebSocketClient {
         saveTrade(plannedTrade);
     }
 
-    private double calculateAverage(TradeDetailsDto trade, int lotsToBook, OrderData orderData, double existingAvg) {
+    private void calculateAndSetAverage(TradeDetailsDto trade, int lotsToBook, OrderData orderData, double existingAvg, String txnType) {
         var existingQuantity = trade.getInitialLots() - trade.getAvailableLots();
         var existingTotal = existingAvg * existingQuantity;
 
@@ -378,10 +384,16 @@ public class AppWebSocketClient extends WebSocketClient {
 
         var finalAvg = (existingTotal + newTotal) / (existingQuantity + lotsToBook);
 
-        log.debug("Average calculation details : existingAvg - {}, existingQuantity - {}, existingTotal - {}, newAvg - {}, newQty - {}, newTotal - {}, finalAvg - {}",
+        log.info("Average calculation details : existingAvg - {}, existingQuantity - {}, existingTotal - {}, newAvg - {}, newQty - {}, newTotal - {}, finalAvg - {}",
                 existingAvg, existingQuantity, existingTotal, newAvg, lotsToBook, newTotal, finalAvg);
 
-        return finalAvg;
+        if (TRANSACTION_TYPE_BUY.equals(txnType)) {
+            trade.setTotalBuyValue(newTotal);
+            trade.setBuyAvg(finalAvg);
+        } else {
+            trade.setTotalSellValue(newTotal);
+            trade.setSellAvg(finalAvg);
+        }
     }
 
     @Override
