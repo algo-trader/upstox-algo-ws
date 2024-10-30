@@ -6,7 +6,7 @@ import com.algo.upstox.config.AppPropertyConfig.Scrip;
 import com.algo.upstox.model.TaskListDto;
 import com.algo.upstox.model.platform.IndexEnum;
 import com.algo.upstox.service.BreakoutTradeService;
-import com.algo.upstox.service.PlaceOrderService;
+import com.algo.upstox.service.OrderService;
 import com.algo.upstox.service.PositionService;
 import com.algo.upstox.service.UserSubscriptionService;
 import com.algo.upstox.service.impl.ApiFactory;
@@ -32,7 +32,7 @@ public class WebsocketService {
     private final ObjectMapper objectMapper;
     private final FeedResponseEventPublisher feedResponseEventPublisher;
     private final PositionService positionService;
-    private final PlaceOrderService placeOrderService;
+    private final OrderService orderService;
     private final Map<IndexEnum, Scrip> scrips;
     private final BreakoutTradeService breakoutTradeService;
     private final AppPropertyConfig appPropertyConfig;
@@ -52,7 +52,7 @@ public class WebsocketService {
 
     private WebSocketClient createWebSocketClient(String uri, String sessionId, TaskListDto taskList) {
         return new AppWebSocketClient(URI.create(uri), subscriptionService, objectMapper,
-                feedResponseEventPublisher, positionService, placeOrderService,
+                feedResponseEventPublisher, positionService, orderService,
                 taskList, sessionId, scrips, breakoutTradeService, appPropertyConfig);
     }
 
