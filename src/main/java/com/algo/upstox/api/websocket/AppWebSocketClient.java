@@ -7,13 +7,13 @@ import com.algo.upstox.config.AppPropertyConfig.Scrip;
 import com.algo.upstox.model.DataObjectDto;
 import com.algo.upstox.model.PlaceOrderResponseDto;
 import com.algo.upstox.model.SubscriptionRequestDto;
-import com.algo.upstox.model.TaskListDto;
 import com.algo.upstox.model.documents.BreakoutTradeDto;
 import com.algo.upstox.model.documents.TradeDetailsDto;
 import com.algo.upstox.model.documents.TradeStatusEnum;
-import com.algo.upstox.model.documents.UserPositionDto;
 import com.algo.upstox.model.platform.IndexEnum;
-import com.algo.upstox.service.*;
+import com.algo.upstox.service.BreakoutTradeService;
+import com.algo.upstox.service.OrderService;
+import com.algo.upstox.service.UserSubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.upstox.api.OrderData;
@@ -49,20 +49,16 @@ public class AppWebSocketClient extends WebSocketClient {
     private final UserSubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
     private final FeedResponseEventPublisher feedResponseEventPublisher;
-    private final PositionService positionService;
     private final OrderService orderService;
     private final String sessionId;
-    private final TaskListDto taskList;
     private final Map<IndexEnum, Scrip> scrips;
     private final BreakoutTradeService breakoutTradeService;
-
-    private final AppPropertyConfig appPropertyConfig;
-    private UserPositionDto currentPosition;
 
     private final AppPropertyConfig.TradeExecutionDirectionEnum tradeExecutionDirection;
     private static final List<TradeStatusEnum> runningTradeStatuses = List.of(EXECUTED, TARGET_1);
     private static final List<TradeStatusEnum> initialTradeStatuses = List.of(PLANNED, MODIFIED);
 
+    private final AtomicBoolean isPlanedTradeFetched = new AtomicBoolean(false);
 
     @Setter
     private List<BreakoutTradeDto> plannedTrades;
@@ -75,26 +71,27 @@ public class AppWebSocketClient extends WebSocketClient {
                     return plannedTrades;
                 });
         log.debug("Planned Trade - {}", plannedTrades);
+        if (!isPlanedTradeFetched.get() && !plannedTrades.isEmpty()) {
+            isPlanedTradeFetched.set(true);
+            log.info("Planned trade has been fetched..");
+        }
         return plannedTrades;
     }
 
 
     public AppWebSocketClient(URI serverUri, UserSubscriptionService subscriptionService,
                               ObjectMapper objectMapper, FeedResponseEventPublisher feedResponseEventPublisher,
-                              PositionService positionService, OrderService orderService, TaskListDto taskList,
+                              OrderService orderService,
                               String sessionId, Map<IndexEnum, Scrip> scrips, BreakoutTradeService breakoutTradeService,
                               AppPropertyConfig appPropertyConfig) {
         super(serverUri);
         this.subscriptionService = subscriptionService;
         this.objectMapper = objectMapper;
         this.feedResponseEventPublisher = feedResponseEventPublisher;
-        this.positionService = positionService;
         this.orderService = orderService;
-        this.taskList = taskList;
         this.sessionId = sessionId;
         this.scrips = scrips;
         this.breakoutTradeService = breakoutTradeService;
-        this.appPropertyConfig = appPropertyConfig;
         tradeExecutionDirection = appPropertyConfig.getPlatform().getTradeExecutionDirection();
     }
 
@@ -171,6 +168,7 @@ public class AppWebSocketClient extends WebSocketClient {
                                 .filter(st -> PLANNED == st.getTradeStatus())
                                 .filter(st -> ltpc.getLtp() < plannedTrade.getShortBelow())
                                 .ifPresent(shortTrade -> {
+                                    log.info("Short trade plan execution matched");
                                     performTradeInitiation(shortTrade, plannedTrade);
                                 });
                     }
@@ -226,7 +224,7 @@ public class AppWebSocketClient extends WebSocketClient {
                                         if (ltpc.getLtp() > shortTrade.getStopLossAtSpot()) {
                                             log.info("SHORT : StopLoss condition has been met, triggering");
                                             performSquareOffForStopLoss(shortTrade, plannedTrade);
-                                        } else if (ltpc.getLtp() > shortTrade.getTarget1AtSpot()) {
+                                        } else if (ltpc.getLtp() < shortTrade.getTarget1AtSpot()) {
                                             log.info("SHORT : Target 1 condition met, executing.");
                                             performTargetOrder(shortTrade, plannedTrade);
                                         }
@@ -362,7 +360,11 @@ public class AppWebSocketClient extends WebSocketClient {
                         log.error("Unable to fetch order data", e);
                     }
                 });
-        trade.setAvailableLots(trade.getAvailableLots() - lotsToBook);
+
+        if (EXECUTED != statusToBeUpdated) {
+            trade.setAvailableLots(trade.getAvailableLots() - lotsToBook);
+        }
+
         trade.setTradeStatus(statusToBeUpdated);
 
         if (TARGET_1 == statusToBeUpdated) {

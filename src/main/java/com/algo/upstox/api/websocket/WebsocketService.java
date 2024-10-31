@@ -7,7 +7,6 @@ import com.algo.upstox.model.TaskListDto;
 import com.algo.upstox.model.platform.IndexEnum;
 import com.algo.upstox.service.BreakoutTradeService;
 import com.algo.upstox.service.OrderService;
-import com.algo.upstox.service.PositionService;
 import com.algo.upstox.service.UserSubscriptionService;
 import com.algo.upstox.service.impl.ApiFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,7 +30,6 @@ public class WebsocketService {
     private final UserSubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
     private final FeedResponseEventPublisher feedResponseEventPublisher;
-    private final PositionService positionService;
     private final OrderService orderService;
     private final Map<IndexEnum, Scrip> scrips;
     private final BreakoutTradeService breakoutTradeService;
@@ -43,17 +41,17 @@ public class WebsocketService {
             var response = websocketApi.getMarketDataFeedAuthorize(API_VERSION);
             var uri = response.getData().getAuthorizedRedirectUri();
             log.info("Portfolio URI - {}", uri);
-            var client = createWebSocketClient(uri, sessionId, taskList);
+            var client = createWebSocketClient(uri, sessionId);
             client.connect();
         } catch (ApiException e) {
             log.error(e.getMessage(), e);
         }
     }
 
-    private WebSocketClient createWebSocketClient(String uri, String sessionId, TaskListDto taskList) {
+    private WebSocketClient createWebSocketClient(String uri, String sessionId) {
         return new AppWebSocketClient(URI.create(uri), subscriptionService, objectMapper,
-                feedResponseEventPublisher, positionService, orderService,
-                taskList, sessionId, scrips, breakoutTradeService, appPropertyConfig);
+                feedResponseEventPublisher, orderService,
+                sessionId, scrips, breakoutTradeService, appPropertyConfig);
     }
 
 }
