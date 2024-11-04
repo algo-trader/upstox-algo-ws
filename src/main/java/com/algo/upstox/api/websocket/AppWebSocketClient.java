@@ -385,15 +385,17 @@ public class AppWebSocketClient extends WebSocketClient {
         var newTotal = newAvg * lotsToBook;
 
         var finalAvg = (existingTotal + newTotal) / (existingQuantity + lotsToBook);
+        var totalTxnValue = newTotal * (Optional.ofNullable(scrips.get(trade.getIndex()))
+                .map(Scrip::getLotSize)).orElse(0);
 
-        log.info("Average calculation details : existingAvg - {}, existingQuantity - {}, existingTotal - {}, newAvg - {}, newQty - {}, newTotal - {}, finalAvg - {}",
-                existingAvg, existingQuantity, existingTotal, newAvg, lotsToBook, newTotal, finalAvg);
+        log.info("Average calculation details : existingAvg - {}, existingQuantity - {}, existingTotal - {}, newAvg - {}, newQty - {}, newTotal - {}, finalAvg - {}, totalTxnValue - {}",
+                existingAvg, existingQuantity, existingTotal, newAvg, lotsToBook, newTotal, finalAvg, totalTxnValue);
 
         if (TRANSACTION_TYPE_BUY.equals(txnType)) {
-            trade.setTotalBuyValue(newTotal);
+            trade.setTotalBuyValue(totalTxnValue);
             trade.setBuyAvg(finalAvg);
         } else {
-            trade.setTotalSellValue(newTotal);
+            trade.setTotalSellValue(totalTxnValue);
             trade.setSellAvg(finalAvg);
         }
     }
