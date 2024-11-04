@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.algo.upstox.constants.AppConstants.SESSION_ID_HEADER;
 
 @RestController
-@RequestMapping("/ws")
+@RequestMapping("/ws-connect")
 @RequiredArgsConstructor
 public class WebSocketRestController {
     private final WebsocketService websocketService;

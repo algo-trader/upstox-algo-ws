@@ -18,7 +18,7 @@ import org.java_websocket.client.WebSocketClient;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
-import java.util.Map;
+import java.util.*;
 
 import static com.algo.upstox.constants.AppConstants.API_VERSION;
 
@@ -35,6 +35,8 @@ public class WebsocketService {
     private final BreakoutTradeService breakoutTradeService;
     private final AppPropertyConfig appPropertyConfig;
 
+    private static final Map<String, WebSocketClient> connectedClients = new HashMap<>();
+
     public void initiateWebsocket(String sessionId, TaskListDto taskList) {
         var websocketApi = apiFactory.getApi(sessionId, WebsocketApi.class);
         try {
@@ -42,10 +44,16 @@ public class WebsocketService {
             var uri = response.getData().getAuthorizedRedirectUri();
             log.info("Portfolio URI - {}", uri);
             var client = createWebSocketClient(uri, sessionId);
+            connectedClients.put(sessionId, client);
             client.connect();
         } catch (ApiException e) {
             log.error(e.getMessage(), e);
         }
+    }
+
+    public void disconnectWebsocket(String sessionId) {
+        Optional.ofNullable(connectedClients.remove(sessionId))
+                .ifPresent(WebSocketClient::close);
     }
 
     private WebSocketClient createWebSocketClient(String uri, String sessionId) {
