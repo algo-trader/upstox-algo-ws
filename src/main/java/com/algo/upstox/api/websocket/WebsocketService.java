@@ -34,10 +34,11 @@ public class WebsocketService {
     private final Map<IndexEnum, Scrip> scrips;
     private final BreakoutTradeService breakoutTradeService;
     private final AppPropertyConfig appPropertyConfig;
+    private final WebsocketMessageEmitter websocketMessageEmitter;
 
     private static final Map<String, WebSocketClient> connectedClients = new HashMap<>();
 
-    public void initiateWebsocket(String sessionId, TaskListDto taskList) {
+    public void initiateWebsocket(String sessionId) {
         var websocketApi = apiFactory.getApi(sessionId, WebsocketApi.class);
         try {
             var response = websocketApi.getMarketDataFeedAuthorize(API_VERSION);
@@ -59,7 +60,7 @@ public class WebsocketService {
     private WebSocketClient createWebSocketClient(String uri, String sessionId) {
         return new AppWebSocketClient(URI.create(uri), subscriptionService, objectMapper,
                 feedResponseEventPublisher, orderService,
-                sessionId, scrips, breakoutTradeService, appPropertyConfig);
+                sessionId, scrips, breakoutTradeService, websocketMessageEmitter, appPropertyConfig);
     }
 
 }
