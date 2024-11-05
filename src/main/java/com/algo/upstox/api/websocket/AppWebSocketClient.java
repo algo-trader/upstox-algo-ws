@@ -35,13 +35,29 @@ import org.springframework.scheduling.annotation.Async;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
-import static com.algo.upstox.config.AppPropertyConfig.TradeExecutionDirectionEnum.*;
-import static com.algo.upstox.constants.AppConstants.*;
-import static com.algo.upstox.model.documents.TradeStatusEnum.*;
+import static com.algo.upstox.config.AppPropertyConfig.TradeExecutionDirectionEnum.BOTH;
+import static com.algo.upstox.config.AppPropertyConfig.TradeExecutionDirectionEnum.LONG;
+import static com.algo.upstox.config.AppPropertyConfig.TradeExecutionDirectionEnum.SHORT;
+import static com.algo.upstox.constants.AppConstants.METHOD;
+import static com.algo.upstox.constants.AppConstants.MODE_FULL;
+import static com.algo.upstox.constants.AppConstants.TRANSACTION_TYPE_BUY;
+import static com.algo.upstox.constants.AppConstants.reverseOf;
+import static com.algo.upstox.model.documents.TradeStatusEnum.EXECUTED;
+import static com.algo.upstox.model.documents.TradeStatusEnum.MODIFIED;
+import static com.algo.upstox.model.documents.TradeStatusEnum.PLANNED;
+import static com.algo.upstox.model.documents.TradeStatusEnum.SQUARED_OFF_T1;
+import static com.algo.upstox.model.documents.TradeStatusEnum.SQUARED_OFF_T2;
+import static com.algo.upstox.model.documents.TradeStatusEnum.STOP_LOSS;
+import static com.algo.upstox.model.documents.TradeStatusEnum.STOP_LOSS_T1;
+import static com.algo.upstox.model.documents.TradeStatusEnum.TARGET_1;
 
 @Slf4j
 public class AppWebSocketClient extends WebSocketClient {
@@ -53,6 +69,7 @@ public class AppWebSocketClient extends WebSocketClient {
     private final String sessionId;
     private final Map<IndexEnum, Scrip> scrips;
     private final BreakoutTradeService breakoutTradeService;
+    private final WebsocketMessageEmitter websocketMessageEmitter;
 
     private final AppPropertyConfig.TradeExecutionDirectionEnum tradeExecutionDirection;
     private static final List<TradeStatusEnum> runningTradeStatuses = List.of(EXECUTED, TARGET_1);
@@ -65,9 +82,11 @@ public class AppWebSocketClient extends WebSocketClient {
 
     public List<BreakoutTradeDto> getPlannedTrades() {
         Optional.ofNullable(plannedTrades)
+                .filter(l -> !l.isEmpty())
                 .orElseGet(() -> {
                     Optional.ofNullable(breakoutTradeService.retrieveAllTrades(sessionId))
                             .ifPresent(this::setPlannedTrades);
+                    websocketMessageEmitter.emitTradePlanMessages(plannedTrades, sessionId);
                     return plannedTrades;
                 });
         log.debug("Planned Trade - {}", plannedTrades);
@@ -82,7 +101,7 @@ public class AppWebSocketClient extends WebSocketClient {
     public AppWebSocketClient(URI serverUri, UserSubscriptionService subscriptionService,
                               ObjectMapper objectMapper, FeedResponseEventPublisher feedResponseEventPublisher,
                               OrderService orderService,
-                              String sessionId, Map<IndexEnum, Scrip> scrips, BreakoutTradeService breakoutTradeService,
+                              String sessionId, Map<IndexEnum, Scrip> scrips, BreakoutTradeService breakoutTradeService, WebsocketMessageEmitter websocketMessageEmitter,
                               AppPropertyConfig appPropertyConfig) {
         super(serverUri);
         this.subscriptionService = subscriptionService;
@@ -92,6 +111,7 @@ public class AppWebSocketClient extends WebSocketClient {
         this.sessionId = sessionId;
         this.scrips = scrips;
         this.breakoutTradeService = breakoutTradeService;
+        this.websocketMessageEmitter = websocketMessageEmitter;
         tradeExecutionDirection = appPropertyConfig.getPlatform().getTradeExecutionDirection();
     }
 
@@ -402,7 +422,7 @@ public class AppWebSocketClient extends WebSocketClient {
 
     @Override
     public void onClose(int i, String s, boolean b) {
-        log.info("Closed websocket");
+        log.info("Closed websocket - {}, {}, {}", i, s, b);
     }
 
     @Override
