@@ -61,4 +61,4 @@ app:
       asset-download-name-suffix: '.json'
       trading-symbol-pattern: '<instrumentName> <strike> <instrumentType> <expiryDate>'
       trading-symbol-date-format: 'dd MMM yy'
-      trade-execution-direction: SHORT
+      trade-execution-direction: BOTH
