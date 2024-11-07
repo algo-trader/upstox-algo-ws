@@ -31,8 +31,6 @@ import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
 import org.springframework.scheduling.annotation.Async;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -60,6 +58,8 @@ import static com.algo.upstox.model.documents.TradeStatusEnum.SQUARED_OFF_T2;
 import static com.algo.upstox.model.documents.TradeStatusEnum.STOP_LOSS;
 import static com.algo.upstox.model.documents.TradeStatusEnum.STOP_LOSS_T1;
 import static com.algo.upstox.model.documents.TradeStatusEnum.TARGET_1;
+import static com.algo.upstox.util.AppUtil.truncateD;
+import static com.algo.upstox.util.AppUtil.truncateF;
 
 @Slf4j
 public class AppWebSocketClient extends WebSocketClient {
@@ -389,11 +389,11 @@ public class AppWebSocketClient extends WebSocketClient {
         var existingQuantity = trade.getInitialLots() - trade.getAvailableLots();
         var existingTotal = existingAvg * existingQuantity;
 
-        var newAvg = truncate(orderData.getAveragePrice());
-        var newTotal = truncate(newAvg * lotsToBook);
+        var newAvg = truncateF(orderData.getAveragePrice());
+        var newTotal = truncateF(newAvg * lotsToBook);
 
-        var finalAvg = truncate((existingTotal + newTotal) / (existingQuantity + lotsToBook));
-        var totalTxnValue = truncate(newTotal * (Optional.ofNullable(scrips.get(trade.getIndex()))
+        var finalAvg = truncateD((existingTotal + newTotal) / (existingQuantity + lotsToBook));
+        var totalTxnValue = truncateF(newTotal * (Optional.ofNullable(scrips.get(trade.getIndex()))
                 .map(Scrip::getLotSize)).orElse(0));
 
         log.info("Average calculation details : existingAvg - {}, existingQuantity - {}, existingTotal - {}, newAvg - {}, newQty - {}, newTotal - {}, finalAvg - {}, totalTxnValue - {}",
@@ -475,10 +475,5 @@ public class AppWebSocketClient extends WebSocketClient {
     private List<TradeDetailsDto> getTradesList(List<TradeDetailsDto> longTrades) {
         return Optional.ofNullable(longTrades)
                 .orElseGet(ArrayList::new);
-    }
-
-    private double truncate(double theDouble) {
-        var bd = new BigDecimal(theDouble).setScale(2, RoundingMode.DOWN);
-        return bd.doubleValue();
     }
 }
