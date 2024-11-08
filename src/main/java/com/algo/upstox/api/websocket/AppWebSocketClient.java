@@ -4,12 +4,15 @@ import com.algo.upstox.api.events.FeedMessageReceivedEvent;
 import com.algo.upstox.api.events.FeedResponseEventPublisher;
 import com.algo.upstox.config.AppPropertyConfig;
 import com.algo.upstox.config.AppPropertyConfig.Scrip;
+import com.algo.upstox.model.AddSubscriptionsRequestDto;
 import com.algo.upstox.model.DataObjectDto;
 import com.algo.upstox.model.PlaceOrderResponseDto;
 import com.algo.upstox.model.SubscriptionRequestDto;
 import com.algo.upstox.model.documents.BreakoutTradeDto;
+import com.algo.upstox.model.documents.SubscriptionDataDto;
 import com.algo.upstox.model.documents.TradeDetailsDto;
 import com.algo.upstox.model.documents.TradeStatusEnum;
+import com.algo.upstox.model.documents.UserSubscriptionDto;
 import com.algo.upstox.model.platform.IndexEnum;
 import com.algo.upstox.service.BreakoutTradeService;
 import com.algo.upstox.service.OrderService;
@@ -42,6 +45,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static com.algo.upstox.config.AppPropertyConfig.TradeExecutionDirectionEnum.BOTH;
 import static com.algo.upstox.config.AppPropertyConfig.TradeExecutionDirectionEnum.LONG;
@@ -66,7 +70,6 @@ public class AppWebSocketClient extends WebSocketClient {
 
     private final UserSubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
-    private final FeedResponseEventPublisher feedResponseEventPublisher;
     private final OrderService orderService;
     private final String sessionId;
     private final Map<IndexEnum, Scrip> scrips;
@@ -84,6 +87,8 @@ public class AppWebSocketClient extends WebSocketClient {
 
     @Setter
     private List<BreakoutTradeDto> plannedTrades;
+    @Setter
+    private UserSubscriptionDto userSubscription;
 
     public List<BreakoutTradeDto> getPlannedTrades() {
         Optional.ofNullable(plannedTrades)
@@ -91,7 +96,20 @@ public class AppWebSocketClient extends WebSocketClient {
                 .orElseGet(() -> {
                     Optional.ofNullable(breakoutTradeService.retrieveAllTrades(sessionId))
                             .ifPresent(this::setPlannedTrades);
+
                     websocketMessageEmitter.emitTradePlanMessages(plannedTrades, sessionId);
+                    var subscriptionList = new ArrayList<String>();
+                    plannedTrades.forEach(pt -> {
+                        Optional.ofNullable(pt.getLongTrades())
+                                .ifPresent(lt -> subscriptionList.addAll(lt.stream()
+                                        .map(TradeDetailsDto::getInstrumentKey).toList()));
+                        Optional.ofNullable(pt.getShortTrades())
+                                .ifPresent(lt -> subscriptionList.addAll(lt.stream()
+                                        .map(TradeDetailsDto::getInstrumentKey).toList()));
+                    });
+                    subscriptionService.addToUserSubscriptions(sessionId, subscriptionList);
+                    setUserSubscription(subscriptionService.retrieveUserSubscriptions(sessionId));
+                    this.sendSubscriptionRequest(this, sessionId);
                     return plannedTrades;
                 });
         log.debug("Planned Trade - {}", plannedTrades);
@@ -111,7 +129,6 @@ public class AppWebSocketClient extends WebSocketClient {
         super(serverUri);
         this.subscriptionService = subscriptionService;
         this.objectMapper = objectMapper;
-        this.feedResponseEventPublisher = feedResponseEventPublisher;
         this.orderService = orderService;
         this.sessionId = sessionId;
         this.scrips = scrips;
@@ -137,8 +154,7 @@ public class AppWebSocketClient extends WebSocketClient {
         var performingOperation = new AtomicBoolean(false);
 
         doManageTrade(performingOperation, response);
-
-        feedResponseEventPublisher.publishEvent(new FeedMessageReceivedEvent(response));
+        websocketMessageEmitter.emitLtpc(userSubscription, response, sessionId);
     }
 
     private void doManageTrade(AtomicBoolean performingOperation, MarketDataFeed.FeedResponse response) {
@@ -433,7 +449,10 @@ public class AppWebSocketClient extends WebSocketClient {
                 .method(METHOD)
                 .data(DataObjectDto.builder()
                         .mode(MODE_FULL)
-                        .instrumentKeys(subscriptions.getSubscriptionList())
+                        .instrumentKeys(subscriptions.getSubscriptionList()
+                                .stream()
+                                .map(SubscriptionDataDto::getInstrumentToken)
+                                .collect(Collectors.toSet()))
                         .build())
                 .build();
 
