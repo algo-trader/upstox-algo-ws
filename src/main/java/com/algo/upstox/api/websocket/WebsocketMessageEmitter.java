@@ -18,6 +18,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -49,7 +50,12 @@ public class WebsocketMessageEmitter {
                     .ifPresent(list -> {
                         list.forEach(item -> {
                             if (key.equals(item.getInstrumentToken())) {
-                                feeds.add(LtpcFeedMessage.builder().tradingSymbol(item.getTradingSymbol())
+                                feeds.add(LtpcFeedMessage.builder()
+                                        .index(item.getIndex())
+                                        .tradingSymbol(item.getTradingSymbol())
+                                        .exchange(item.getExchange())
+                                        .expiry(item.getExpiry())
+                                        .fullName(item.getName())
                                         .feedData(FeedData.builder()
                                                 .instrumentKey(key)
                                                 .ltpc(isEmpty(value.getFf().getIndexFF()) ? buildLtpc(value.getFf().getMarketFF()) : buildLtpc(value.getFf().getIndexFF()))
@@ -59,8 +65,8 @@ public class WebsocketMessageEmitter {
                         });
                     });
         });
-
-        emitMessage(feeds, DESTINATION_LTPC, MessageCategoryEnum.LTPC, sessionId);
+        var finalList = feeds.stream().sorted(Comparator.comparing(LtpcFeedMessage::getIndex)).toList();
+        emitMessage(finalList, DESTINATION_LTPC, MessageCategoryEnum.LTPC, sessionId);
     }
 
     public static List<FeedData> toFeedList(FeedResponse response) {
