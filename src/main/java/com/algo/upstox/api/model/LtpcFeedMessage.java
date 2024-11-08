@@ -12,6 +12,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class LtpcFeedMessage {
+    private int index;
     private String tradingSymbol;
+    private String fullName;
+    private String expiry;
+    private String exchange;
     private FeedData feedData;
 }

@@ -3,7 +3,6 @@ package com.algo.upstox.api.websocket;
 import com.algo.upstox.api.events.FeedResponseEventPublisher;
 import com.algo.upstox.config.AppPropertyConfig;
 import com.algo.upstox.config.AppPropertyConfig.Scrip;
-import com.algo.upstox.model.TaskListDto;
 import com.algo.upstox.model.platform.IndexEnum;
 import com.algo.upstox.service.BreakoutTradeService;
 import com.algo.upstox.service.OrderService;
@@ -18,7 +17,9 @@ import org.java_websocket.client.WebSocketClient;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
 import static com.algo.upstox.constants.AppConstants.API_VERSION;
 
@@ -45,6 +46,7 @@ public class WebsocketService {
             var uri = response.getData().getAuthorizedRedirectUri();
             log.info("Portfolio URI - {}", uri);
             var client = createWebSocketClient(uri, sessionId);
+           // client.getPlannedTrades();
             connectedClients.put(sessionId, client);
             client.connect();
         } catch (ApiException e) {
@@ -57,7 +59,7 @@ public class WebsocketService {
                 .ifPresent(WebSocketClient::close);
     }
 
-    private WebSocketClient createWebSocketClient(String uri, String sessionId) {
+    private AppWebSocketClient createWebSocketClient(String uri, String sessionId) {
         return new AppWebSocketClient(URI.create(uri), subscriptionService, objectMapper,
                 feedResponseEventPublisher, orderService,
                 sessionId, scrips, breakoutTradeService, websocketMessageEmitter, appPropertyConfig);

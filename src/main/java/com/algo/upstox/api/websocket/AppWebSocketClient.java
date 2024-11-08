@@ -437,7 +437,7 @@ public class AppWebSocketClient extends WebSocketClient {
     private void sendSubscriptionRequest(WebSocketClient client, String sessionId) {
         String requestObject = constructSubscriptionRequest(sessionId);
         byte[] binaryData = requestObject.getBytes(StandardCharsets.UTF_8);
-        log.info("Sending: {}", requestObject);
+        //log.info("Sending: {}", requestObject);
         client.send(binaryData);
     }
 
