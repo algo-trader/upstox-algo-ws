@@ -1,10 +1,8 @@
 package com.algo.upstox.api.websocket;
 
-import com.algo.upstox.api.events.FeedMessageReceivedEvent;
 import com.algo.upstox.api.events.FeedResponseEventPublisher;
 import com.algo.upstox.config.AppPropertyConfig;
 import com.algo.upstox.config.AppPropertyConfig.Scrip;
-import com.algo.upstox.model.AddSubscriptionsRequestDto;
 import com.algo.upstox.model.DataObjectDto;
 import com.algo.upstox.model.PlaceOrderResponseDto;
 import com.algo.upstox.model.SubscriptionRequestDto;
@@ -90,6 +88,11 @@ public class AppWebSocketClient extends WebSocketClient {
     @Setter
     private UserSubscriptionDto userSubscription;
 
+    public void forceGetPlannedTrades() {
+        setPlannedTrades(breakoutTradeService.retrieveAllTrades(sessionId));
+        emitPlannedTrades();
+    }
+
     public List<BreakoutTradeDto> getPlannedTrades() {
         Optional.ofNullable(plannedTrades)
                 .filter(l -> !l.isEmpty())
@@ -97,7 +100,7 @@ public class AppWebSocketClient extends WebSocketClient {
                     Optional.ofNullable(breakoutTradeService.retrieveAllTrades(sessionId))
                             .ifPresent(this::setPlannedTrades);
 
-                    websocketMessageEmitter.emitTradePlanMessages(plannedTrades, sessionId);
+                    emitPlannedTrades();
                     var subscriptionList = new ArrayList<String>();
                     plannedTrades.forEach(pt -> {
                         Optional.ofNullable(pt.getLongTrades())
@@ -399,6 +402,7 @@ public class AppWebSocketClient extends WebSocketClient {
         }
 
         saveTrade(plannedTrade);
+        forceGetPlannedTrades();
     }
 
     private void calculateAndSetAverage(TradeDetailsDto trade, int lotsToBook, OrderData orderData, double existingAvg, String txnType) {
@@ -494,5 +498,9 @@ public class AppWebSocketClient extends WebSocketClient {
     private List<TradeDetailsDto> getTradesList(List<TradeDetailsDto> longTrades) {
         return Optional.ofNullable(longTrades)
                 .orElseGet(ArrayList::new);
+    }
+
+    private void emitPlannedTrades() {
+        websocketMessageEmitter.emitTradePlanMessages(plannedTrades, sessionId);
     }
 }
