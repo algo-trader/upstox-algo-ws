@@ -81,46 +81,42 @@ public class AppWebSocketClient extends WebSocketClient {
     private static final Predicate<TradeDetailsDto> executedCondition = trade -> EXECUTED == trade.getTradeStatus();
     private static final Predicate<TradeDetailsDto> target1Condition = trade -> TARGET_1 == trade.getTradeStatus();
 
-    private final AtomicBoolean isPlanedTradeFetched = new AtomicBoolean(false);
-
     @Setter
     private List<BreakoutTradeDto> plannedTrades;
     @Setter
     private UserSubscriptionDto userSubscription;
 
     public void forceGetPlannedTrades() {
-        setPlannedTrades(breakoutTradeService.retrieveAllTrades(sessionId));
+        fetchAndSetPlannedTrades();
+    }
+
+    public void fetchAndSetPlannedTrades() {
+        Optional.ofNullable(breakoutTradeService.retrieveAllTrades(sessionId))
+                .ifPresent(this::setPlannedTrades);
+
+        addToUserSubscription();
         emitPlannedTrades();
     }
 
-    public List<BreakoutTradeDto> getPlannedTrades() {
-        Optional.ofNullable(plannedTrades)
-                .filter(l -> !l.isEmpty())
-                .orElseGet(() -> {
-                    Optional.ofNullable(breakoutTradeService.retrieveAllTrades(sessionId))
-                            .ifPresent(this::setPlannedTrades);
-
-                    emitPlannedTrades();
-                    var subscriptionList = new ArrayList<String>();
-                    plannedTrades.forEach(pt -> {
-                        Optional.ofNullable(pt.getLongTrades())
-                                .ifPresent(lt -> subscriptionList.addAll(lt.stream()
-                                        .map(TradeDetailsDto::getInstrumentKey).toList()));
-                        Optional.ofNullable(pt.getShortTrades())
-                                .ifPresent(lt -> subscriptionList.addAll(lt.stream()
-                                        .map(TradeDetailsDto::getInstrumentKey).toList()));
-                    });
-                    subscriptionService.addToUserSubscriptions(sessionId, subscriptionList);
-                    setUserSubscription(subscriptionService.retrieveUserSubscriptions(sessionId));
-                    this.sendSubscriptionRequest(this, sessionId);
-                    return plannedTrades;
-                });
-        log.debug("Planned Trade - {}", plannedTrades);
-        if (!isPlanedTradeFetched.get() && !plannedTrades.isEmpty()) {
-            isPlanedTradeFetched.set(true);
-            log.info("Planned trade has been fetched..");
+    private void addToUserSubscription() {
+        if (plannedTrades == null) {
+            return;
         }
-        return plannedTrades;
+
+        var subscriptionList = new ArrayList<String>();
+
+        plannedTrades.forEach(pt -> {
+            Optional.ofNullable(pt.getLongTrades())
+                    .ifPresent(lt -> subscriptionList.addAll(lt.stream()
+                            .map(TradeDetailsDto::getInstrumentKey).toList()));
+            Optional.ofNullable(pt.getShortTrades())
+                    .ifPresent(lt -> subscriptionList.addAll(lt.stream()
+                            .map(TradeDetailsDto::getInstrumentKey).toList()));
+        });
+
+        subscriptionService.addToUserSubscriptions(sessionId, subscriptionList);
+        setUserSubscription(subscriptionService.retrieveUserSubscriptions(sessionId));
+        this.sendSubscriptionRequest(this, sessionId);
     }
 
 
@@ -150,19 +146,23 @@ public class AppWebSocketClient extends WebSocketClient {
     public void onMessage(String s) {
     }
 
+
     @Override
     public void onMessage(ByteBuffer buffer) {
         log.debug("Received binary message: {}", buffer);
         var response = handleBinaryMessage(buffer);
         var performingOperation = new AtomicBoolean(false);
 
+        emitLtpc(response);
         doManageTrade(performingOperation, response);
-        websocketMessageEmitter.emitLtpc(userSubscription, response, sessionId);
     }
 
     private void doManageTrade(AtomicBoolean performingOperation, MarketDataFeed.FeedResponse response) {
         // Initiate and manage trades
-        getPlannedTrades()
+        if (plannedTrades == null) {
+            return;
+        }
+        plannedTrades
                 .forEach(plannedTrade -> {
                     if (!performingOperation.get()) {
                         performingOperation.set(true);
@@ -176,7 +176,6 @@ public class AppWebSocketClient extends WebSocketClient {
                         performingOperation.set(false);
                     }
                 });
-
     }
 
     private void verifyAndInitiatePlannedTrade(BreakoutTradeDto plannedTrade, MarketDataFeed.Feed data) {
@@ -350,7 +349,7 @@ public class AppWebSocketClient extends WebSocketClient {
 
         var order = orderService.placeMarketOrder(trade.getTradingSymbol(), lotsToBook,
                 txnType, sessionId, trade.getProduct());
-        trade.setAvailableLots(remainingLots);
+//        trade.setAvailableLots(remainingLots);
         runUpdate(plannedTrade, trade, txnType, lotsToBook, statusToBeUpdated, order);
         log.info("Updated Status - {}", statusToBeUpdated);
     }
@@ -364,6 +363,7 @@ public class AppWebSocketClient extends WebSocketClient {
     private void updateTradeDetails(BreakoutTradeDto plannedTrade, TradeDetailsDto trade, String txnType, int lotsToBook,
                                     TradeStatusEnum statusToBeUpdated, PlaceOrderResponseDto order) {
         log.info("Running update on thread - {}", Thread.currentThread().getName());
+        var scrip = scrips.get(plannedTrade.getInstrument());
 
         Optional.ofNullable(order.getResponse())
                 .map(PlaceOrderResponse::getData)
@@ -381,7 +381,7 @@ public class AppWebSocketClient extends WebSocketClient {
                             log.debug("Calculating new SELL average");
                         }
 
-                        calculateAndSetAverage(trade, lotsToBook, orderData, existingAvg, txnType);
+                        calculateAndSetAverage(trade, lotsToBook, orderData, existingAvg, txnType, scrip);
 
                     } catch (Exception e) {
                         log.error("Unable to fetch order data", e);
@@ -405,7 +405,7 @@ public class AppWebSocketClient extends WebSocketClient {
         forceGetPlannedTrades();
     }
 
-    private void calculateAndSetAverage(TradeDetailsDto trade, int lotsToBook, OrderData orderData, double existingAvg, String txnType) {
+    private void calculateAndSetAverage(TradeDetailsDto trade, int lotsToBook, OrderData orderData, double existingAvg, String txnType, Scrip scrip) {
         var existingQuantity = trade.getInitialLots() - trade.getAvailableLots();
         var existingTotal = existingAvg * existingQuantity;
 
@@ -426,6 +426,19 @@ public class AppWebSocketClient extends WebSocketClient {
             trade.setTotalSellValue(totalTxnValue);
             trade.setSellAvg(finalAvg);
         }
+
+        if (trade.getTotalBuyValue() > 0 && trade.getTotalSellValue() > 0) {
+            var totalBuy = trade.getBuyAvg() * lotsToBook;
+            var totalSell = trade.getSellAvg() * lotsToBook;
+
+            if (existingQuantity == 0) {
+                trade.setTotalPnL(truncateD((totalSell - totalBuy) * scrip.getLotSize()));
+            } else {
+                var existingPnL = trade.getTotalPnL();
+                trade.setTotalPnL(truncateD((totalSell - totalBuy) * scrip.getLotSize()) + existingPnL);
+            }
+
+        }
     }
 
     @Override
@@ -442,7 +455,11 @@ public class AppWebSocketClient extends WebSocketClient {
         String requestObject = constructSubscriptionRequest(sessionId);
         byte[] binaryData = requestObject.getBytes(StandardCharsets.UTF_8);
         //log.info("Sending: {}", requestObject);
-        client.send(binaryData);
+        try {
+            client.send(binaryData);
+        } catch (Exception e) {
+            log.error("Unable to request subscription - {}", e.getMessage());
+        }
     }
 
     private String constructSubscriptionRequest(String sessionId) {
@@ -502,5 +519,9 @@ public class AppWebSocketClient extends WebSocketClient {
 
     private void emitPlannedTrades() {
         websocketMessageEmitter.emitTradePlanMessages(plannedTrades, sessionId);
+    }
+
+    private void emitLtpc(FeedResponse response) {
+        websocketMessageEmitter.emitLtpc(userSubscription, response, sessionId);
     }
 }
