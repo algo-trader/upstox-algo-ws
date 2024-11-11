@@ -37,7 +37,7 @@ public class WebsocketService {
     private final AppPropertyConfig appPropertyConfig;
     private final WebsocketMessageEmitter websocketMessageEmitter;
 
-    private static final Map<String, WebSocketClient> connectedClients = new HashMap<>();
+    private static final Map<String, AppWebSocketClient> connectedClients = new HashMap<>();
 
     public void initiateWebsocket(String sessionId) {
         var websocketApi = apiFactory.getApi(sessionId, WebsocketApi.class);
@@ -57,6 +57,11 @@ public class WebsocketService {
     public void disconnectWebsocket(String sessionId) {
         Optional.ofNullable(connectedClients.remove(sessionId))
                 .ifPresent(WebSocketClient::close);
+    }
+
+    public void fetchPlannedTradeData(String sessionId) {
+        Optional.ofNullable(connectedClients.get(sessionId))
+                .ifPresent(AppWebSocketClient::fetchAndSetPlannedTrades);
     }
 
     private AppWebSocketClient createWebSocketClient(String uri, String sessionId) {

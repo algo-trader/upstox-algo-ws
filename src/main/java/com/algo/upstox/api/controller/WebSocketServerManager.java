@@ -6,8 +6,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.Message;
+import org.springframework.messaging.handler.annotation.Header;
+import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Service;
+import org.springframework.messaging.support.GenericMessage;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.socket.messaging.SessionConnectEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.web.socket.messaging.SessionSubscribeEvent;
@@ -20,7 +23,7 @@ import static com.algo.upstox.api.util.WSConstants.NATIVE_HEADERS_KEY;
 import static com.algo.upstox.api.util.WSConstants.SESSION_ID_KEY;
 import static com.algo.upstox.api.util.WSConstants.SIMP_SESSION_ID_KEY;
 
-@Service
+@Controller
 @RequiredArgsConstructor
 @Slf4j
 @SuppressWarnings("all")
@@ -28,6 +31,12 @@ public class WebSocketServerManager {
     private final SimpMessagingTemplate messagingTemplate;
     private final WebsocketService websocketService;
     private final WebSocketLoggedInUserService webSocketLoggedInUserService;
+
+    @MessageMapping("/user/tradeData")
+    public void notificationFromUser(@Header(SESSION_ID_KEY) String sessionId, GenericMessage message) {
+        log.info("User pinged for trade data {}", sessionId);
+        websocketService.fetchPlannedTradeData(sessionId);
+    }
 
     @EventListener
     public void handleSessionConnected(SessionConnectEvent event) {
