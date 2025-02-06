@@ -1,24 +1,25 @@
 package com.algo.upstox.api.websocket;
 
 import com.algo.upstox.api.events.FeedResponseEventPublisher;
-import com.algo.upstox.config.AppPropertyConfig;
-import com.algo.upstox.config.AppPropertyConfig.Scrip;
-import com.algo.upstox.model.DataObjectDto;
-import com.algo.upstox.model.PlaceOrderResponseDto;
-import com.algo.upstox.model.SubscriptionRequestDto;
-import com.algo.upstox.model.documents.BreakoutTradeDto;
-import com.algo.upstox.model.documents.SubscriptionDataDto;
-import com.algo.upstox.model.documents.TradeDetailsDto;
-import com.algo.upstox.model.documents.TradeStatusEnum;
-import com.algo.upstox.model.documents.UserSubscriptionDto;
-import com.algo.upstox.model.platform.IndexEnum;
-import com.algo.upstox.service.BreakoutTradeService;
-import com.algo.upstox.service.OrderService;
-import com.algo.upstox.service.UserSubscriptionService;
+import com.algo.upstox.common.config.AppPropertyConfig;
+import com.algo.upstox.common.config.AppPropertyConfig.Scrip;
+import com.algo.upstox.common.model.DataObjectDto;
+import com.algo.upstox.common.model.PlaceOrderResponseDto;
+import com.algo.upstox.common.model.SubscriptionRequestDto;
+import com.algo.upstox.common.model.documents.BreakoutTradeDto;
+import com.algo.upstox.common.model.documents.SubscriptionDataDto;
+import com.algo.upstox.common.model.documents.TradeDetailsDto;
+import com.algo.upstox.common.model.documents.TradeStatusEnum;
+import com.algo.upstox.common.model.documents.UserSubscriptionDto;
+import com.algo.upstox.common.model.platform.IndexEnum;
+import com.algo.upstox.common.service.BreakoutTradeService;
+import com.algo.upstox.common.service.OrderService;
+import com.algo.upstox.common.service.UserSubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.upstox.api.OrderData;
 import com.upstox.api.PlaceOrderData;
+import com.upstox.api.PlaceOrderRequest;
 import com.upstox.api.PlaceOrderRequest.ProductEnum;
 import com.upstox.api.PlaceOrderResponse;
 import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed;
@@ -45,23 +46,23 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static com.algo.upstox.config.AppPropertyConfig.TradeExecutionDirectionEnum.BOTH;
-import static com.algo.upstox.config.AppPropertyConfig.TradeExecutionDirectionEnum.LONG;
-import static com.algo.upstox.config.AppPropertyConfig.TradeExecutionDirectionEnum.SHORT;
-import static com.algo.upstox.constants.AppConstants.METHOD;
-import static com.algo.upstox.constants.AppConstants.MODE_FULL;
-import static com.algo.upstox.constants.AppConstants.TRANSACTION_TYPE_BUY;
-import static com.algo.upstox.constants.AppConstants.reverseOf;
-import static com.algo.upstox.model.documents.TradeStatusEnum.EXECUTED;
-import static com.algo.upstox.model.documents.TradeStatusEnum.MODIFIED;
-import static com.algo.upstox.model.documents.TradeStatusEnum.PLANNED;
-import static com.algo.upstox.model.documents.TradeStatusEnum.SQUARED_OFF_T1;
-import static com.algo.upstox.model.documents.TradeStatusEnum.SQUARED_OFF_T2;
-import static com.algo.upstox.model.documents.TradeStatusEnum.STOP_LOSS;
-import static com.algo.upstox.model.documents.TradeStatusEnum.STOP_LOSS_T1;
-import static com.algo.upstox.model.documents.TradeStatusEnum.TARGET_1;
-import static com.algo.upstox.util.AppUtil.truncateD;
-import static com.algo.upstox.util.AppUtil.truncateF;
+import static com.algo.upstox.common.config.AppPropertyConfig.TradeExecutionDirectionEnum.BOTH;
+import static com.algo.upstox.common.config.AppPropertyConfig.TradeExecutionDirectionEnum.LONG;
+import static com.algo.upstox.common.config.AppPropertyConfig.TradeExecutionDirectionEnum.SHORT;
+import static com.algo.upstox.common.constants.AppConstants.METHOD;
+import static com.algo.upstox.common.constants.AppConstants.MODE_FULL;
+import static com.algo.upstox.common.constants.AppConstants.TRANSACTION_TYPE_BUY;
+import static com.algo.upstox.common.constants.AppConstants.reverseOf;
+import static com.algo.upstox.common.model.documents.TradeStatusEnum.EXECUTED;
+import static com.algo.upstox.common.model.documents.TradeStatusEnum.MODIFIED;
+import static com.algo.upstox.common.model.documents.TradeStatusEnum.PLANNED;
+import static com.algo.upstox.common.model.documents.TradeStatusEnum.SQUARED_OFF_T1;
+import static com.algo.upstox.common.model.documents.TradeStatusEnum.SQUARED_OFF_T2;
+import static com.algo.upstox.common.model.documents.TradeStatusEnum.STOP_LOSS;
+import static com.algo.upstox.common.model.documents.TradeStatusEnum.STOP_LOSS_T1;
+import static com.algo.upstox.common.model.documents.TradeStatusEnum.TARGET_1;
+import static com.algo.upstox.common.util.AppUtil.truncateD;
+import static com.algo.upstox.common.util.AppUtil.truncateF;
 
 @Slf4j
 public class AppWebSocketClient extends WebSocketClient {
@@ -298,7 +299,7 @@ public class AppWebSocketClient extends WebSocketClient {
             trade.setProduct(ProductEnum.I);
         }
         return orderService.placeMarketOrder(trade.getTradingSymbol(), trade.getAvailableLots(),
-                trade.getTransactionType().name(), sessionId, trade.getProduct());
+                PlaceOrderRequest.TransactionTypeEnum.fromValue(trade.getTransactionType().name()), sessionId, trade.getProduct());
     }
 
     /**
@@ -316,7 +317,7 @@ public class AppWebSocketClient extends WebSocketClient {
         var txnType = reverseOf(trade.getTransactionType().name());
 
         var order = orderService.placeMarketOrder(trade.getTradingSymbol(), trade.getAvailableLots(),
-                txnType, sessionId, trade.getProduct());
+                PlaceOrderRequest.TransactionTypeEnum.fromValue(txnType), sessionId, trade.getProduct());
 
         runUpdate(plannedTrade, trade, txnType, trade.getAvailableLots(), statusToBeUpdated, order);
     }
@@ -348,7 +349,7 @@ public class AppWebSocketClient extends WebSocketClient {
         var txnType = reverseOf(trade.getTransactionType().name());
 
         var order = orderService.placeMarketOrder(trade.getTradingSymbol(), lotsToBook,
-                txnType, sessionId, trade.getProduct());
+                PlaceOrderRequest.TransactionTypeEnum.fromValue(txnType), sessionId, trade.getProduct());
 //        trade.setAvailableLots(remainingLots);
         runUpdate(plannedTrade, trade, txnType, lotsToBook, statusToBeUpdated, order);
         log.info("Updated Status - {}", statusToBeUpdated);

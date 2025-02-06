@@ -1,7 +1,6 @@
 package com.algo.upstox.api.model;
 
-import com.algo.upstox.model.ws.FeedData;
-import com.upstox.feeder.MarketUpdate.LTPC;
+import com.algo.upstox.common.model.ws.FeedData;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

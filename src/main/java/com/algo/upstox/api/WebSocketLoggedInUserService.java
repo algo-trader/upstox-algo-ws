@@ -1,7 +1,7 @@
 package com.algo.upstox.api;
 
-import com.algo.upstox.model.documents.LoggedInUserDto;
-import com.algo.upstox.service.AuthService;
+import com.algo.upstox.common.model.documents.LoggedInUserDto;
+import com.algo.upstox.common.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

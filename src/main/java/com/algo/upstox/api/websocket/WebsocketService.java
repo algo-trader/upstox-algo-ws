@@ -1,13 +1,13 @@
 package com.algo.upstox.api.websocket;
 
 import com.algo.upstox.api.events.FeedResponseEventPublisher;
-import com.algo.upstox.config.AppPropertyConfig;
-import com.algo.upstox.config.AppPropertyConfig.Scrip;
-import com.algo.upstox.model.platform.IndexEnum;
-import com.algo.upstox.service.BreakoutTradeService;
-import com.algo.upstox.service.OrderService;
-import com.algo.upstox.service.UserSubscriptionService;
-import com.algo.upstox.service.impl.ApiFactory;
+import com.algo.upstox.common.config.AppPropertyConfig;
+import com.algo.upstox.common.config.AppPropertyConfig.Scrip;
+import com.algo.upstox.common.model.platform.IndexEnum;
+import com.algo.upstox.common.service.BreakoutTradeService;
+import com.algo.upstox.common.service.OrderService;
+import com.algo.upstox.common.service.UserSubscriptionService;
+import com.algo.upstox.common.service.impl.ApiFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.upstox.ApiException;
 import io.swagger.client.api.WebsocketApi;
@@ -21,7 +21,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.algo.upstox.constants.AppConstants.API_VERSION;
+import static com.algo.upstox.common.constants.AppConstants.API_VERSION;
+
 
 @Component
 @RequiredArgsConstructor
