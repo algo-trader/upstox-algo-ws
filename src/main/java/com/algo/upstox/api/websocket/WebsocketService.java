@@ -1,8 +1,5 @@
 package com.algo.upstox.api.websocket;
 
-import com.algo.upstox.api.events.FeedResponseEventPublisher;
-import com.algo.upstox.common.config.AppPropertyConfig.Scrip;
-import com.algo.upstox.common.model.platform.IndexEnum;
 import com.algo.upstox.common.service.ConditionalTradeService;
 import com.algo.upstox.common.service.OrderService;
 import com.algo.upstox.common.service.UserSubscriptionService;
@@ -30,10 +27,7 @@ public class WebsocketService {
     private final ApiFactory apiFactory;
     private final UserSubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
-    private final FeedResponseEventPublisher feedResponseEventPublisher;
     private final OrderService orderService;
-    private final Map<IndexEnum, Scrip> scrips;
-    private final WebsocketMessageEmitter websocketMessageEmitter;
     private final ConditionalTradeService conditionalTradeService;
 
     private static final Map<String, AppWebSocketClient> connectedClients = new HashMap<>();
@@ -58,9 +52,8 @@ public class WebsocketService {
     }
 
     private AppWebSocketClient createWebSocketClient(String uri, String sessionId) {
-        return new AppWebSocketClient(URI.create(uri), subscriptionService, objectMapper,
-                feedResponseEventPublisher, orderService,
-                sessionId, scrips, websocketMessageEmitter, conditionalTradeService);
+        return new AppWebSocketClient(URI.create(uri), subscriptionService, objectMapper, orderService,
+                sessionId, conditionalTradeService);
     }
 
 }
