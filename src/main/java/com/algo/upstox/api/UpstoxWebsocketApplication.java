@@ -6,7 +6,7 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
 import org.springframework.scheduling.annotation.EnableAsync;
 
 @SpringBootApplication(scanBasePackages = "com.algo")
-@EnableMongoRepositories(basePackages = "com.algo.upstox.repository")
+@EnableMongoRepositories(basePackages = "com.algo.upstox.common.repository")
 @EnableAsync
 public class UpstoxWebsocketApplication{
 
