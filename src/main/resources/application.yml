@@ -61,7 +61,7 @@ app:
     scrips:
       - name: NIFTY
         trading-symbol: NSE_INDEX|Nifty 50
-        lot-size: 25
+        lot-size: 75
         strike-diff: 50
         expiry-day: THURSDAY
         no-trade-after: "14:55:00"

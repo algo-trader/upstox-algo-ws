@@ -55,31 +55,38 @@ public class ConditionalTradeWs {
         if (conditionalTrade == null) {
             return;
         }
-        if (CollectionUtils.isEmpty(conditionalTrade.getConditions())
-                || CollectionUtils.isEmpty(conditionalTrade.getTradeRequests())) {
+
+        var theConditionalTrade = conditionalTrade;
+        conditionalTrade = null;
+
+        if (CollectionUtils.isEmpty(theConditionalTrade.getConditions())
+                || CollectionUtils.isEmpty(theConditionalTrade.getTradeRequests())) {
             return;
         }
 
-        double ltp = getLtp(response, conditionalTrade.getScrip());
+        double ltp = getLtp(response, theConditionalTrade.getScrip());
 
         if (ltp < 0) {
             return;
         }
 
-        boolean isConditionSatisfied = parseConditions(conditionalTrade.getConditions(), conditionalTrade.getScrip(), ltp);
+        boolean isConditionSatisfied = parseConditions(theConditionalTrade.getConditions(), theConditionalTrade.getScrip(), ltp);
         if (isConditionSatisfied) {
-            log.info("Conditional trade entry criteria satisfied.");
-            var trades = conditionalTrade.getTradeRequests();
+            deactivateConditionalTrade();
 
-            var orderIds = executeTrades(conditionalTrade.getScrip(), trades)
+            log.info("Conditional trade entry criteria satisfied.");
+
+            var trades = theConditionalTrade.getTradeRequests();
+            var orderIds = executeTrades(theConditionalTrade.getScrip(), trades)
                     .stream().map(PlaceOrderResponseDto::getResponse)
                     .map(PlaceOrderResponse::getData)
                     .map(PlaceOrderData::getOrderId)
                     .toList();
 
-            var savedExecutedTrades = conditionalTradeService.saveExecutedConditionalTrade(conditionalTrade.getScrip(), orderIds, sessionId);
-            savedExecutedTrades.setTargetAt(conditionalTrade.getTargetPrice());
-            savedExecutedTrades.setStopLossAt(conditionalTrade.getStopLossPrice());
+            var savedExecutedTrades = conditionalTradeService.saveExecutedConditionalTrade(theConditionalTrade.getScrip(), orderIds, sessionId);
+            savedExecutedTrades.setEntryAt(theConditionalTrade.getConditions().get(0).getPrice());
+            savedExecutedTrades.setTargetAt(theConditionalTrade.getTargetPrice());
+            savedExecutedTrades.setStopLossAt(theConditionalTrade.getStopLossPrice());
             savedExecutedTrades.setDirection(TradeDirectionEnum.SHORT);
 
             conditionalTradeService.saveExecutedConditionalTrade(savedExecutedTrades);
@@ -178,7 +185,10 @@ public class ConditionalTradeWs {
                 return;
             }
             var isSatisfying = resolveComparison(ltp, condition.getCompare(), condition.getPrice(), condition.getDiff());
-            log.info("Condition satisfied: {}'s {} is {} {} by {} points.", scrip.getName(), ltp, condition.getCompare(), condition.getPrice(), condition.getDiff());
+            if (isSatisfying) {
+                log.info("Condition satisfied: {}'s {} is {} {} by {} points.", scrip.getName(), ltp,
+                        condition.getCompare(), condition.getPrice(), condition.getDiff());
+            }
             atomicConditions.set(atomicConditions.get() && isSatisfying);
             conditionChecked.set(true);
         });
@@ -191,8 +201,8 @@ public class ConditionalTradeWs {
 
     private boolean resolveComparison(double ltp, CompareEnum compare, double price, int diff) {
         return switch (compare) {
-            case BELOW -> (ltp - diff) <= price;
-            case ABOVE -> price >= (ltp + diff);
+            case BELOW -> ltp <= price - diff;
+            case ABOVE -> ltp >= price + diff;
             case EQUAL -> price == ltp;
             default -> false;
         };
