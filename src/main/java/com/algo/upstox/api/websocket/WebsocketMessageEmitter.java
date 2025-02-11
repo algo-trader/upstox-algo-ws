@@ -3,10 +3,10 @@ package com.algo.upstox.api.websocket;
 import com.algo.upstox.api.model.EmittedMessages;
 import com.algo.upstox.api.model.LtpcFeedMessage;
 import com.algo.upstox.api.model.MessageCategoryEnum;
-import com.algo.upstox.model.documents.BreakoutTradeDto;
-import com.algo.upstox.model.documents.UserSubscriptionDto;
-import com.algo.upstox.model.ws.FeedData;
-import com.algo.upstox.model.ws.LTPC;
+import com.algo.upstox.common.model.documents.BreakoutTradeDto;
+import com.algo.upstox.common.model.documents.UserSubscriptionDto;
+import com.algo.upstox.common.model.ws.FeedData;
+import com.algo.upstox.common.model.ws.LTPC;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed;
@@ -21,9 +21,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
-import static com.algo.upstox.constants.AppConstants.fromTms;
+import static com.algo.upstox.common.constants.AppConstants.fromTms;
 
 @Component
 @AllArgsConstructor

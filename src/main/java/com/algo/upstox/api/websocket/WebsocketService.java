@@ -1,13 +1,9 @@
 package com.algo.upstox.api.websocket;
 
-import com.algo.upstox.api.events.FeedResponseEventPublisher;
-import com.algo.upstox.config.AppPropertyConfig;
-import com.algo.upstox.config.AppPropertyConfig.Scrip;
-import com.algo.upstox.model.platform.IndexEnum;
-import com.algo.upstox.service.BreakoutTradeService;
-import com.algo.upstox.service.OrderService;
-import com.algo.upstox.service.UserSubscriptionService;
-import com.algo.upstox.service.impl.ApiFactory;
+import com.algo.upstox.common.service.ConditionalTradeService;
+import com.algo.upstox.common.service.OrderService;
+import com.algo.upstox.common.service.UserSubscriptionService;
+import com.algo.upstox.common.service.impl.ApiFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.upstox.ApiException;
 import io.swagger.client.api.WebsocketApi;
@@ -21,7 +17,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.algo.upstox.constants.AppConstants.API_VERSION;
+import static com.algo.upstox.common.constants.AppConstants.API_VERSION;
+
 
 @Component
 @RequiredArgsConstructor
@@ -30,12 +27,8 @@ public class WebsocketService {
     private final ApiFactory apiFactory;
     private final UserSubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
-    private final FeedResponseEventPublisher feedResponseEventPublisher;
     private final OrderService orderService;
-    private final Map<IndexEnum, Scrip> scrips;
-    private final BreakoutTradeService breakoutTradeService;
-    private final AppPropertyConfig appPropertyConfig;
-    private final WebsocketMessageEmitter websocketMessageEmitter;
+    private final ConditionalTradeService conditionalTradeService;
 
     private static final Map<String, AppWebSocketClient> connectedClients = new HashMap<>();
 
@@ -46,7 +39,6 @@ public class WebsocketService {
             var uri = response.getData().getAuthorizedRedirectUri();
             log.info("Portfolio URI - {}", uri);
             var client = createWebSocketClient(uri, sessionId);
-           // client.getPlannedTrades();
             connectedClients.put(sessionId, client);
             client.connect();
         } catch (ApiException e) {
@@ -59,15 +51,9 @@ public class WebsocketService {
                 .ifPresent(WebSocketClient::close);
     }
 
-    public void fetchPlannedTradeData(String sessionId) {
-        Optional.ofNullable(connectedClients.get(sessionId))
-                .ifPresent(AppWebSocketClient::fetchAndSetPlannedTrades);
-    }
-
     private AppWebSocketClient createWebSocketClient(String uri, String sessionId) {
-        return new AppWebSocketClient(URI.create(uri), subscriptionService, objectMapper,
-                feedResponseEventPublisher, orderService,
-                sessionId, scrips, breakoutTradeService, websocketMessageEmitter, appPropertyConfig);
+        return new AppWebSocketClient(URI.create(uri), subscriptionService, objectMapper, orderService,
+                sessionId, conditionalTradeService);
     }
 
 }

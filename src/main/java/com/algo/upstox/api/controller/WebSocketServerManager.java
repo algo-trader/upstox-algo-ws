@@ -35,7 +35,6 @@ public class WebSocketServerManager {
     @MessageMapping("/user/tradeData")
     public void notificationFromUser(@Header(SESSION_ID_KEY) String sessionId, GenericMessage message) {
         log.info("User pinged for trade data {}", sessionId);
-        websocketService.fetchPlannedTradeData(sessionId);
     }
 
     @EventListener
