@@ -35,6 +35,12 @@ app:
       market-end-time: "15:30:00"
       login-refresh-time: "06:00:00"
   config:
+    ws:
+      connect-url: ${WS_CONNECT_URL:unknown}
+      header-connect-key: ${WS_HEADER_CONNECT_KEY:unknown}
+      header-connect-value: ${WS_HEADER_CONNECT_VALUE:unknown}
+      header-user-key: ${WS_HEADER_USER_KEY:unknown}
+      header-user-value: ${WS_HEADER_USER_VALUE:unknown}
     trade:
       lot-multiplier: ${LOT_MULTIPLIER:1}
       candle-data-durations:

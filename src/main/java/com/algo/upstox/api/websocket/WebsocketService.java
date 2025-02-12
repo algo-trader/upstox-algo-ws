@@ -1,5 +1,6 @@
 package com.algo.upstox.api.websocket;
 
+import com.algo.upstox.common.model.ws.ActivityEnum;
 import com.algo.upstox.common.service.ConditionalTradeService;
 import com.algo.upstox.common.service.OrderService;
 import com.algo.upstox.common.service.UserSubscriptionService;
@@ -44,6 +45,11 @@ public class WebsocketService {
         } catch (ApiException e) {
             log.error(e.getMessage(), e);
         }
+    }
+
+    public void loadConditionalTrades(String sessionId, ActivityEnum activity) {
+        Optional.ofNullable(connectedClients.get(sessionId))
+                .ifPresent(app -> app.loadConditionalTrade(activity));
     }
 
     public void disconnectWebsocket(String sessionId) {

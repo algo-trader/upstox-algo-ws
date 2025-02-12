@@ -1,14 +1,15 @@
 package com.algo.upstox.api.websocket;
 
 import com.algo.upstox.common.config.AppPropertyConfig.Scrip;
+import com.algo.upstox.common.model.ErrorResponseDto;
 import com.algo.upstox.common.model.PlaceOrderResponseDto;
-import com.algo.upstox.common.model.conditional.CompareEnum;
 import com.algo.upstox.common.model.conditional.Condition;
 import com.algo.upstox.common.model.conditional.ExecutedConditionalTradeDto;
 import com.algo.upstox.common.model.conditional.TradeRequest;
 import com.algo.upstox.common.model.documents.ConditionalTradeDto;
 import com.algo.upstox.common.model.documents.TradeDirectionEnum;
 import com.algo.upstox.common.model.platform.OptionsEnum;
+import com.algo.upstox.common.model.ws.ActivityEnum;
 import com.algo.upstox.common.service.ConditionalTradeService;
 import com.algo.upstox.common.service.OrderService;
 import com.upstox.api.PlaceOrderData;
@@ -24,12 +25,16 @@ import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.algo.upstox.common.constants.AppConstants.reverseOf;
 import static com.algo.upstox.common.util.AppUtil.prepareTradingSymbol;
+import static com.algo.upstox.common.util.AppUtil.resolveComparison;
 import static java.lang.Integer.parseInt;
+import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -48,10 +53,21 @@ public class ConditionalTradeWs {
         performExit(response);
     }
 
-    private void makeEntry(FeedResponse response) {
-        conditionalTradeService.getActiveConditionalTrade(sessionId)
-                .ifPresent(this::setConditionalTrade);
+    public void loadConditionalTrade(ActivityEnum activity) {
+        switch (activity) {
+            case CONDITIONAL_CREATE, CONDITIONAL_UPDATE -> {
+                log.info("Fetching conditional trades for user : Activity : {}", activity);
+                conditionalTradeService.getActiveConditionalTrade(sessionId)
+                        .ifPresent(this::setConditionalTrade);
+            }
+            case CONDITIONAL_DELETE -> {
+                this.setConditionalTrade(null);
+                conditionalTradeService.deactivateConditionalTrade(sessionId);
+            }
+        }
+    }
 
+    private void makeEntry(FeedResponse response) {
         if (conditionalTrade == null) {
             return;
         }
@@ -77,11 +93,27 @@ public class ConditionalTradeWs {
             log.info("Conditional trade entry criteria satisfied.");
 
             var trades = theConditionalTrade.getTradeRequests();
-            var orderIds = executeTrades(theConditionalTrade.getScrip(), trades)
-                    .stream().map(PlaceOrderResponseDto::getResponse)
+            var executedTradeResponses = executeTrades(theConditionalTrade.getScrip(), trades);
+
+            var orderIds = executedTradeResponses.stream()
+                    .filter(res -> "success".equals(res.getStatus()))
+                    .filter(res -> isNull(res.getError()) && nonNull(res.getResponse()))
+                    .map(PlaceOrderResponseDto::getResponse)
                     .map(PlaceOrderResponse::getData)
                     .map(PlaceOrderData::getOrderId)
                     .toList();
+
+            executedTradeResponses
+                    .stream().filter(etr -> "failed".equals(etr.getStatus()))
+                    .map(PlaceOrderResponseDto::getError)
+                    .filter(Objects::nonNull)
+                    .map(ErrorResponseDto::getErrors)
+                    .forEach(etr -> etr.forEach(err ->
+                            log.info("ORDER FAILED :: [{}] - {}", err.getErrorCode(), err.getMessage())));
+
+            if (CollectionUtils.isEmpty(orderIds)) {
+                return;
+            }
 
             var savedExecutedTrades = conditionalTradeService.saveExecutedConditionalTrade(theConditionalTrade.getScrip(), orderIds, sessionId);
             savedExecutedTrades.setEntryAt(theConditionalTrade.getConditions().get(0).getPrice());
@@ -197,24 +229,6 @@ public class ConditionalTradeWs {
 
         log.debug("Final decision: [{}]", finalDecision);
         return finalDecision;
-    }
-
-    private boolean resolveComparison(double ltp, CompareEnum compare, double price, int diff) {
-        return switch (compare) {
-            case BELOW -> ltp <= price - diff;
-            case ABOVE -> ltp >= price + diff;
-            case EQUAL -> price == ltp;
-            default -> false;
-        };
-    }
-
-    private boolean resolveComparison(double price1, double price2, CompareEnum compare) {
-        return switch (compare) {
-            case BELOW -> price1 <= price2;
-            case ABOVE -> price1 >= price2;
-            case EQUAL -> price1 == price2;
-            default -> false;
-        };
     }
 
     private void deactivateConditionalTrade() {

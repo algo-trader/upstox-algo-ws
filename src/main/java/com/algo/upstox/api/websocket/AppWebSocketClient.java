@@ -3,6 +3,7 @@ package com.algo.upstox.api.websocket;
 import com.algo.upstox.common.model.DataObjectDto;
 import com.algo.upstox.common.model.SubscriptionRequestDto;
 import com.algo.upstox.common.model.documents.SubscriptionDataDto;
+import com.algo.upstox.common.model.ws.ActivityEnum;
 import com.algo.upstox.common.service.ConditionalTradeService;
 import com.algo.upstox.common.service.OrderService;
 import com.algo.upstox.common.service.UserSubscriptionService;
@@ -99,6 +100,10 @@ public class AppWebSocketClient extends WebSocketClient {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void loadConditionalTrade(ActivityEnum activityEnum) {
+        conditionalTradeWs.loadConditionalTrade(activityEnum);
     }
 
     private FeedResponse handleBinaryMessage(ByteBuffer bytes) {
