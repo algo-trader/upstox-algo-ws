@@ -4,11 +4,13 @@ import com.algo.upstox.api.WebSocketLoggedInUserService;
 import com.algo.upstox.api.websocket.WebsocketService;
 import com.algo.upstox.common.config.AppPropertyConfig.WebsocketAppConfig;
 import com.algo.upstox.common.model.WSMessageDto;
+import com.algo.upstox.common.model.ws.ActivityEnum;
 import com.algo.upstox.common.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -46,7 +48,14 @@ public class WebSocketServerManager {
     @MessageMapping("/user/api/activity")
     public void notificationFromApi(GenericMessage<WSMessageDto> message) {
         log.info("User pinged for trade data {} - {}", message.getHeaders(), message.getPayload().getActivity());
-        websocketService.loadConditionalTrades(message.getPayload().getSessionId(), message.getPayload().getActivity());
+        var activity = message.getPayload().getActivity();
+
+        if (activity == ActivityEnum.CONDITIONAL_UPDATE) {
+            var tradeId = getNativeHeaderValue(message.getHeaders(), "tradeId");
+            websocketService.updateExecutingTrades(message.getPayload().getSessionId(), tradeId);
+        } else if (activity == ActivityEnum.CONDITIONAL_CREATE) {
+            websocketService.loadConditionalTrades(message.getPayload().getSessionId());
+        }
     }
 
     @EventListener
@@ -60,16 +69,7 @@ public class WebSocketServerManager {
 
         var simpSessionId = extractSimpSession(event.getMessage());
 
-        var userSessionId = Optional.of(event.getMessage())
-                .map(Message::getHeaders)
-                .stream()
-                .filter(h -> h.containsKey(NATIVE_HEADERS_KEY))
-                .findFirst()
-                .map(h -> (Map) h.get(NATIVE_HEADERS_KEY))
-                .map(map -> map.get(SESSION_ID_KEY))
-                .map(sessionList -> (ArrayList) sessionList)
-                .map(list -> (String) list.get(0))
-                .orElse(null);
+        var userSessionId = getNativeHeaderValue(event.getMessage().getHeaders(), SESSION_ID_KEY);
 
         log.info("Client details - SimpSession ID - {}, UserSessionId - {}", simpSessionId, userSessionId);
 
@@ -130,6 +130,18 @@ public class WebSocketServerManager {
                             }
                         })
                 .orElse(false);
+    }
+
+    private String getNativeHeaderValue(MessageHeaders headers, String key) {
+        return Optional.ofNullable(headers)
+                .stream()
+                .filter(h -> h.containsKey(NATIVE_HEADERS_KEY))
+                .findFirst()
+                .map(h -> (Map) h.get(NATIVE_HEADERS_KEY))
+                .map(map -> map.get(key))
+                .map(list -> (ArrayList) list)
+                .map(list -> (String) list.get(0))
+                .orElse(null);
     }
 
 }

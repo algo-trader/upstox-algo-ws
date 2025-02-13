@@ -47,9 +47,14 @@ public class WebsocketService {
         }
     }
 
-    public void loadConditionalTrades(String sessionId, ActivityEnum activity) {
+    public void loadConditionalTrades(String sessionId) {
         Optional.ofNullable(connectedClients.get(sessionId))
-                .ifPresent(app -> app.loadConditionalTrade(activity));
+                .ifPresent(AppWebSocketClient::loadConditionalTrade);
+    }
+
+    public void updateExecutingTrades(String sessionId, String tradeId) {
+        Optional.ofNullable(connectedClients.get(sessionId))
+                .ifPresent(app -> app.updateConditionalTrade(tradeId));
     }
 
     public void disconnectWebsocket(String sessionId) {

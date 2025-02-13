@@ -30,6 +30,8 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.algo.upstox.common.constants.AppConstants.reverseOf;
+import static com.algo.upstox.common.model.conditional.CompareEnum.ABOVE;
+import static com.algo.upstox.common.model.conditional.CompareEnum.BELOW;
 import static com.algo.upstox.common.util.AppUtil.prepareTradingSymbol;
 import static com.algo.upstox.common.util.AppUtil.resolveComparison;
 import static java.lang.Integer.parseInt;
@@ -53,18 +55,17 @@ public class ConditionalTradeWs {
         performExit(response);
     }
 
-    public void loadConditionalTrade(ActivityEnum activity) {
-        switch (activity) {
-            case CONDITIONAL_CREATE, CONDITIONAL_UPDATE -> {
-                log.info("Fetching conditional trades for user : Activity : {}", activity);
-                conditionalTradeService.getActiveConditionalTrade(sessionId)
-                        .ifPresent(this::setConditionalTrade);
-            }
-            case CONDITIONAL_DELETE -> {
-                this.setConditionalTrade(null);
-                conditionalTradeService.deactivateConditionalTrade(sessionId);
-            }
-        }
+    public void loadConditionalTrade() {
+        log.info("Fetching conditional trades for user");
+        conditionalTradeService.getActiveConditionalTrade(sessionId)
+                .ifPresent(this::setConditionalTrade);
+    }
+
+    public void updateConditionalTrade(String tradeId) {
+        log.info("Fetching running conditional trades for id : Activity : {}", tradeId);
+        conditionalTradeService
+                .getActiveExecutedTrade(tradeId)
+                .ifPresent(this::setExecutedTrade);
     }
 
     private void makeEntry(FeedResponse response) {
@@ -72,61 +73,66 @@ public class ConditionalTradeWs {
             return;
         }
 
-        var theConditionalTrade = conditionalTrade;
-        conditionalTrade = null;
-
-        if (CollectionUtils.isEmpty(theConditionalTrade.getConditions())
-                || CollectionUtils.isEmpty(theConditionalTrade.getTradeRequests())) {
+        if (CollectionUtils.isEmpty(conditionalTrade.getConditions())
+                || CollectionUtils.isEmpty(conditionalTrade.getTradeRequests())) {
             return;
         }
 
-        double ltp = getLtp(response, theConditionalTrade.getScrip());
+        double ltp = getLtp(response, conditionalTrade.getScrip());
 
         if (ltp < 0) {
             return;
         }
+        try {
+            boolean isConditionSatisfied = parseConditions(conditionalTrade.getConditions(), conditionalTrade.getScrip(), ltp);
+            var condition = conditionalTrade.getConditions().get(0);
+            if (isConditionSatisfied) {
+                log.info("Conditional trade entry criteria satisfied.");
+                var theConditionalTrade = conditionalTrade;
+                deactivateConditionalTrade();
+                var trades = theConditionalTrade.getTradeRequests();
+                var executedTradeResponses = executeTrades(theConditionalTrade.getScrip(), trades);
 
-        boolean isConditionSatisfied = parseConditions(theConditionalTrade.getConditions(), theConditionalTrade.getScrip(), ltp);
-        if (isConditionSatisfied) {
-            deactivateConditionalTrade();
+                var orderIds = executedTradeResponses.stream()
+                        .filter(res -> "success".equals(res.getStatus()) || "complete".equals(res.getStatus()))
+                        .filter(res -> isNull(res.getError()) && nonNull(res.getResponse()))
+                        .map(PlaceOrderResponseDto::getResponse)
+                        .map(PlaceOrderResponse::getData)
+                        .map(PlaceOrderData::getOrderId)
+                        .toList();
 
-            log.info("Conditional trade entry criteria satisfied.");
+                executedTradeResponses
+                        .stream().filter(etr -> "failed".equals(etr.getStatus()) || "error".equals(etr.getStatus()))
+                        .map(PlaceOrderResponseDto::getError)
+                        .filter(Objects::nonNull)
+                        .map(ErrorResponseDto::getErrors)
+                        .forEach(etr -> etr.forEach(err ->
+                                log.info("ORDER FAILED :: [{}] - {}", err.getErrorCode(), err.getMessage())));
 
-            var trades = theConditionalTrade.getTradeRequests();
-            var executedTradeResponses = executeTrades(theConditionalTrade.getScrip(), trades);
+                if (CollectionUtils.isEmpty(orderIds)) {
+                    return;
+                }
 
-            var orderIds = executedTradeResponses.stream()
-                    .filter(res -> "success".equals(res.getStatus()))
-                    .filter(res -> isNull(res.getError()) && nonNull(res.getResponse()))
-                    .map(PlaceOrderResponseDto::getResponse)
-                    .map(PlaceOrderResponse::getData)
-                    .map(PlaceOrderData::getOrderId)
-                    .toList();
+                var savedExecutedTrades = conditionalTradeService.saveExecutedConditionalTrade(theConditionalTrade.getScrip(), orderIds, sessionId);
+                savedExecutedTrades.setEntryAt(theConditionalTrade.getConditions().get(0).getPrice());
+                savedExecutedTrades.setTargetAt(theConditionalTrade.getTargetPrice());
+                savedExecutedTrades.setStopLossAt(theConditionalTrade.getStopLossPrice());
+                if (BELOW == condition.getCompare()) {
+                    savedExecutedTrades.setDirection(TradeDirectionEnum.SHORT);
+                } else if (ABOVE == condition.getCompare()) {
+                    savedExecutedTrades.setDirection(TradeDirectionEnum.LONG);
+                }
 
-            executedTradeResponses
-                    .stream().filter(etr -> "failed".equals(etr.getStatus()))
-                    .map(PlaceOrderResponseDto::getError)
-                    .filter(Objects::nonNull)
-                    .map(ErrorResponseDto::getErrors)
-                    .forEach(etr -> etr.forEach(err ->
-                            log.info("ORDER FAILED :: [{}] - {}", err.getErrorCode(), err.getMessage())));
+                conditionalTradeService.saveExecutedConditionalTrade(savedExecutedTrades);
+                setExecutedTrade(savedExecutedTrades);
 
-            if (CollectionUtils.isEmpty(orderIds)) {
-                return;
+                log.info("Executed conditional trade saved {}", savedExecutedTrades.getId());
+
+                log.info("Deactivating present conditional trade");
+                deactivateConditionalTrade();
             }
-
-            var savedExecutedTrades = conditionalTradeService.saveExecutedConditionalTrade(theConditionalTrade.getScrip(), orderIds, sessionId);
-            savedExecutedTrades.setEntryAt(theConditionalTrade.getConditions().get(0).getPrice());
-            savedExecutedTrades.setTargetAt(theConditionalTrade.getTargetPrice());
-            savedExecutedTrades.setStopLossAt(theConditionalTrade.getStopLossPrice());
-            savedExecutedTrades.setDirection(TradeDirectionEnum.SHORT);
-
-            conditionalTradeService.saveExecutedConditionalTrade(savedExecutedTrades);
-            setExecutedTrade(savedExecutedTrades);
-
-            log.info("Executed conditional trade saved {}", savedExecutedTrades.getId());
-
-            log.info("Deactivating present conditional trade");
+        } catch (Exception e) {
+            log.error("Error executing conditional trade : {}", e.getMessage());
             deactivateConditionalTrade();
         }
     }
@@ -135,9 +141,6 @@ public class ConditionalTradeWs {
         if (executedTrade == null) {
             return;
         }
-        conditionalTradeService
-                .getActiveExecutedTrade(executedTrade.getId())
-                .ifPresent(this::setExecutedTrade);
 
         var ltp = getLtp(response, executedTrade.getScrip());
 
@@ -147,30 +150,39 @@ public class ConditionalTradeWs {
 
         if (executedTrade.getDirection() == TradeDirectionEnum.SHORT) {
             if (ltp > executedTrade.getStopLossAt()) {
-                List<String> orderIds = new ArrayList<>();
-
-                executedTrade.getExecutedTrades()
-                        .forEach(et -> {
-                            var lots = et.getQuantity() / parseInt(et.getInstrument().getLotSize());
-
-                            var orderResponse = orderService.placeMarketOrder(et.getInstrument().getTradingSymbol(),
-                                    lots, reverseOf(et.getTransactionType()),
-                                    sessionId, Optional.ofNullable(et.getProductType())
-                                            .map(pt -> ProductEnum.valueOf(pt.name()))
-                                            .orElse(ProductEnum.D));
-
-                            Optional.ofNullable(orderResponse)
-                                    .map(PlaceOrderResponseDto::getResponse)
-                                    .map(PlaceOrderResponse::getData)
-                                    .map(PlaceOrderData::getOrderId)
-                                    .ifPresent(orderIds::add);
-                        });
-
-                log.info("Closing executed conditional trade with ID {}", executedTrade.getId());
-                conditionalTradeService.closeExecutedConditionalTrades(executedTrade.getId(), orderIds, sessionId);
-                setExecutedTrade(null);
+                doCloseTrades();
             }
         }
+        if (executedTrade.getDirection() == TradeDirectionEnum.LONG) {
+            if (ltp < executedTrade.getStopLossAt()) {
+                doCloseTrades();
+            }
+        }
+    }
+
+    private void doCloseTrades() {
+        List<String> orderIds = new ArrayList<>();
+        log.info("Stoploss criteria satisfied");
+        executedTrade.getExecutedTrades()
+                .forEach(et -> {
+                    var lots = et.getQuantity() / parseInt(et.getInstrument().getLotSize());
+
+                    var orderResponse = orderService.placeMarketOrder(et.getInstrument().getTradingSymbol(),
+                            lots, reverseOf(et.getTransactionType()),
+                            sessionId, Optional.ofNullable(et.getProductType())
+                                    .map(pt -> ProductEnum.valueOf(pt.name()))
+                                    .orElse(ProductEnum.D));
+
+                    Optional.ofNullable(orderResponse)
+                            .map(PlaceOrderResponseDto::getResponse)
+                            .map(PlaceOrderResponse::getData)
+                            .map(PlaceOrderData::getOrderId)
+                            .ifPresent(orderIds::add);
+                });
+
+        log.info("Closing executed conditional trade with ID {}", executedTrade.getId());
+        conditionalTradeService.closeExecutedConditionalTrades(executedTrade.getId(), orderIds, sessionId);
+        setExecutedTrade(null);
     }
 
     private double getLtp(FeedResponse response, Scrip scrip) {

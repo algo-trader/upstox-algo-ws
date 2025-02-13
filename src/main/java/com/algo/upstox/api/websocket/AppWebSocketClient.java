@@ -102,8 +102,12 @@ public class AppWebSocketClient extends WebSocketClient {
         }
     }
 
-    public void loadConditionalTrade(ActivityEnum activityEnum) {
-        conditionalTradeWs.loadConditionalTrade(activityEnum);
+    public void loadConditionalTrade() {
+        conditionalTradeWs.loadConditionalTrade();
+    }
+
+    public void updateConditionalTrade(String tradeId) {
+        conditionalTradeWs.updateConditionalTrade(tradeId);
     }
 
     private FeedResponse handleBinaryMessage(ByteBuffer bytes) {
