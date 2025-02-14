@@ -3,7 +3,6 @@ package com.algo.upstox.api.websocket;
 import com.algo.upstox.common.model.DataObjectDto;
 import com.algo.upstox.common.model.SubscriptionRequestDto;
 import com.algo.upstox.common.model.documents.SubscriptionDataDto;
-import com.algo.upstox.common.model.ws.ActivityEnum;
 import com.algo.upstox.common.service.ConditionalTradeService;
 import com.algo.upstox.common.service.OrderService;
 import com.algo.upstox.common.service.UserSubscriptionService;
@@ -47,8 +46,7 @@ public class AppWebSocketClient extends WebSocketClient {
 
     public AppWebSocketClient(URI serverUri, UserSubscriptionService subscriptionService,
                               ObjectMapper objectMapper,
-                              OrderService orderService,
-                              String sessionId, ConditionalTradeService conditionalTradeService, ConditionalTradeWs conditionalTradeWs) {
+                              String sessionId, ConditionalTradeWs conditionalTradeWs) {
         super(serverUri);
         this.subscriptionService = subscriptionService;
         this.objectMapper = objectMapper;
@@ -58,8 +56,9 @@ public class AppWebSocketClient extends WebSocketClient {
 
     @Override
     public void onOpen(ServerHandshake serverHandshake) {
-        log.info("Websocket opened");
+        log.info("Websocket opened {} - {}", serverHandshake.getHttpStatus(), serverHandshake.getHttpStatusMessage());
         sendSubscriptionRequest(this, sessionId);
+        conditionalTradeWs.fetchRunningTradesOnConnect();
     }
 
     @Override
@@ -133,13 +132,6 @@ public class AppWebSocketClient extends WebSocketClient {
         } catch (InvalidProtocolBufferException e) {
             log.error(e.getMessage(), e);
             return FeedResponse.getDefaultInstance();
-        }
-    }
-
-    public void connectToSocket() {
-        if (!this.isOpen()) {
-            log.info("Connection is not open, reconnecting...");
-            this.connect();
         }
     }
 }

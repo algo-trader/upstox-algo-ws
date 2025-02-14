@@ -250,4 +250,12 @@ public class ConditionalTradeWs {
         conditionalTradeService.doDeactivateConditionalTrade(sessionId)
                 .ifPresent(saved -> log.info("Trade with ID {} deactivated", saved.getId()));
     }
+
+    public void fetchRunningTradesOnConnect() {
+        log.info("Fetching running trades and conditional trades");
+        conditionalTradeService.getActiveConditionalTrade(sessionId)
+                .ifPresent(this::setConditionalTrade);
+        conditionalTradeService.getActiveExecutedTradeForUser(sessionId)
+                .ifPresent(this::setExecutedTrade);
+    }
 }

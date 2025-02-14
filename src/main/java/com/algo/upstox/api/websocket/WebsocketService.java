@@ -87,8 +87,7 @@ public class WebsocketService {
                         var existingWS = client.getConditionalTradeWs();
                         disconnectWebsocket(sessionId);
                         connectedClients.put(sessionId, new AppWebSocketClient(URI.create(resolveURI(sessionId)),
-                                subscriptionService, objectMapper, orderService,
-                                sessionId, conditionalTradeService, existingWS));
+                                subscriptionService, objectMapper, sessionId, existingWS));
                     }
                 });
     }
