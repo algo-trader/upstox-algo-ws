@@ -9,7 +9,6 @@ import com.algo.upstox.common.model.conditional.TradeRequest;
 import com.algo.upstox.common.model.documents.ConditionalTradeDto;
 import com.algo.upstox.common.model.documents.TradeDirectionEnum;
 import com.algo.upstox.common.model.platform.OptionsEnum;
-import com.algo.upstox.common.model.ws.ActivityEnum;
 import com.algo.upstox.common.service.ConditionalTradeService;
 import com.algo.upstox.common.service.OrderService;
 import com.upstox.api.PlaceOrderData;
@@ -142,25 +141,27 @@ public class ConditionalTradeWs {
             return;
         }
 
-        var ltp = getLtp(response, executedTrade.getScrip());
+        var theExecutedTrade = executedTrade;
+
+        var ltp = getLtp(response, theExecutedTrade.getScrip());
 
         if (ltp < 0) {
             return;
         }
 
-        if (executedTrade.getDirection() == TradeDirectionEnum.SHORT) {
-            if (ltp > executedTrade.getStopLossAt()) {
-                doCloseTrades();
+        if (theExecutedTrade.getDirection() == TradeDirectionEnum.SHORT) {
+            if (ltp > theExecutedTrade.getStopLossAt()) {
+                doCloseTrades(theExecutedTrade);
             }
         }
-        if (executedTrade.getDirection() == TradeDirectionEnum.LONG) {
-            if (ltp < executedTrade.getStopLossAt()) {
-                doCloseTrades();
+        if (theExecutedTrade.getDirection() == TradeDirectionEnum.LONG) {
+            if (ltp < theExecutedTrade.getStopLossAt()) {
+                doCloseTrades(theExecutedTrade);
             }
         }
     }
 
-    private void doCloseTrades() {
+    private void doCloseTrades(ExecutedConditionalTradeDto theExecutedTrade) {
         List<String> orderIds = new ArrayList<>();
         log.info("Stoploss criteria satisfied");
         executedTrade.getExecutedTrades()
@@ -180,8 +181,8 @@ public class ConditionalTradeWs {
                             .ifPresent(orderIds::add);
                 });
 
-        log.info("Closing executed conditional trade with ID {}", executedTrade.getId());
-        conditionalTradeService.closeExecutedConditionalTrades(executedTrade.getId(), orderIds, sessionId);
+        log.info("Closing executed conditional trade with ID {}", theExecutedTrade.getId());
+        conditionalTradeService.closeExecutedConditionalTrades(theExecutedTrade.getId(), orderIds, sessionId);
         setExecutedTrade(null);
     }
 
@@ -243,7 +244,8 @@ public class ConditionalTradeWs {
         return finalDecision;
     }
 
-    private void deactivateConditionalTrade() {
+    public void deactivateConditionalTrade() {
+        log.info("Deactivating conditional trade");
         setConditionalTrade(null);
         conditionalTradeService.deactivateConditionalTrade(sessionId);
     }

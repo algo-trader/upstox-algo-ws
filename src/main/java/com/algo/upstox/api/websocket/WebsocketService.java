@@ -52,6 +52,11 @@ public class WebsocketService {
                 .ifPresent(AppWebSocketClient::loadConditionalTrade);
     }
 
+    public void deactivateConditionalTrade(String sessionId) {
+        Optional.ofNullable(connectedClients.get(sessionId))
+                .ifPresent(AppWebSocketClient::deactivateConditionalTrade);
+    }
+
     public void updateExecutingTrades(String sessionId, String tradeId) {
         Optional.ofNullable(connectedClients.get(sessionId))
                 .ifPresent(app -> app.updateConditionalTrade(tradeId));

@@ -28,6 +28,7 @@ import java.util.Optional;
 import static com.algo.upstox.api.util.WSConstants.NATIVE_HEADERS_KEY;
 import static com.algo.upstox.api.util.WSConstants.SESSION_ID_KEY;
 import static com.algo.upstox.api.util.WSConstants.SIMP_SESSION_ID_KEY;
+import static com.algo.upstox.common.constants.MessageConstants.TRADE_ID;
 
 @Controller
 @RequiredArgsConstructor
@@ -51,10 +52,12 @@ public class WebSocketServerManager {
         var activity = message.getPayload().getActivity();
 
         if (activity == ActivityEnum.CONDITIONAL_UPDATE) {
-            var tradeId = getNativeHeaderValue(message.getHeaders(), "tradeId");
+            var tradeId = getNativeHeaderValue(message.getHeaders(), TRADE_ID);
             websocketService.updateExecutingTrades(message.getPayload().getSessionId(), tradeId);
         } else if (activity == ActivityEnum.CONDITIONAL_CREATE) {
             websocketService.loadConditionalTrades(message.getPayload().getSessionId());
+        } else if (activity == ActivityEnum.CONDITIONAL_DELETE) {
+            websocketService.deactivateConditionalTrade(message.getPayload().getSessionId());
         }
     }
 
