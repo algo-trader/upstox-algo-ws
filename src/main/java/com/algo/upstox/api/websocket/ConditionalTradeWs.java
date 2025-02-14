@@ -247,6 +247,7 @@ public class ConditionalTradeWs {
     public void deactivateConditionalTrade() {
         log.info("Deactivating conditional trade");
         setConditionalTrade(null);
-        conditionalTradeService.deactivateConditionalTrade(sessionId);
+        conditionalTradeService.doDeactivateConditionalTrade(sessionId)
+                .ifPresent(saved -> log.info("Trade with ID {} deactivated", saved.getId()));
     }
 }

@@ -1,6 +1,6 @@
 package com.algo.upstox.api.websocket;
 
-import com.algo.upstox.common.model.ws.ActivityEnum;
+import com.algo.upstox.common.exception.AppApiException;
 import com.algo.upstox.common.service.ConditionalTradeService;
 import com.algo.upstox.common.service.OrderService;
 import com.algo.upstox.common.service.UserSubscriptionService;
@@ -35,29 +35,38 @@ public class WebsocketService {
 
     public void initiateWebsocket(String sessionId) {
         var websocketApi = apiFactory.getApi(sessionId, WebsocketApi.class);
+        var client = createWebSocketClient(resolveURI(sessionId), sessionId);
+        connectedClients.put(sessionId, client);
+        client.connect();
+    }
+
+    private String resolveURI(String sessionId) {
+        var websocketApi = apiFactory.getApi(sessionId, WebsocketApi.class);
         try {
             var response = websocketApi.getMarketDataFeedAuthorize(API_VERSION);
             var uri = response.getData().getAuthorizedRedirectUri();
             log.info("Portfolio URI - {}", uri);
-            var client = createWebSocketClient(uri, sessionId);
-            connectedClients.put(sessionId, client);
-            client.connect();
+            return uri;
         } catch (ApiException e) {
             log.error(e.getMessage(), e);
+            throw new AppApiException(e.getMessage(), e);
         }
     }
 
     public void loadConditionalTrades(String sessionId) {
+        ping(sessionId);
         Optional.ofNullable(connectedClients.get(sessionId))
                 .ifPresent(AppWebSocketClient::loadConditionalTrade);
     }
 
     public void deactivateConditionalTrade(String sessionId) {
+        ping(sessionId);
         Optional.ofNullable(connectedClients.get(sessionId))
                 .ifPresent(AppWebSocketClient::deactivateConditionalTrade);
     }
 
     public void updateExecutingTrades(String sessionId, String tradeId) {
+        ping(sessionId);
         Optional.ofNullable(connectedClients.get(sessionId))
                 .ifPresent(app -> app.updateConditionalTrade(tradeId));
     }
@@ -70,6 +79,19 @@ public class WebsocketService {
     private AppWebSocketClient createWebSocketClient(String uri, String sessionId) {
         return new AppWebSocketClient(URI.create(uri), subscriptionService, objectMapper, orderService,
                 sessionId, conditionalTradeService);
+    }
+
+    private void ping(String sessionId) {
+        Optional.ofNullable(connectedClients.get(sessionId))
+                .ifPresent(client -> {
+                    if (!client.isOpen()) {
+                        var existingWS = client.getConditionalTradeWs();
+                        disconnectWebsocket(sessionId);
+                        connectedClients.put(sessionId, new AppWebSocketClient(URI.create(resolveURI(sessionId)),
+                                subscriptionService, objectMapper, orderService,
+                                sessionId, conditionalTradeService, existingWS));
+                    }
+                });
     }
 
 }

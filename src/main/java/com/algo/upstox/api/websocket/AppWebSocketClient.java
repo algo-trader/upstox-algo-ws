@@ -10,6 +10,7 @@ import com.algo.upstox.common.service.UserSubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed.FeedResponse;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
@@ -30,6 +31,7 @@ public class AppWebSocketClient extends WebSocketClient {
     private final ObjectMapper objectMapper;
     private final String sessionId;
 
+    @Getter
     private final ConditionalTradeWs conditionalTradeWs;
 
     public AppWebSocketClient(URI serverUri, UserSubscriptionService subscriptionService,
@@ -41,6 +43,17 @@ public class AppWebSocketClient extends WebSocketClient {
         this.objectMapper = objectMapper;
         this.sessionId = sessionId;
         this.conditionalTradeWs = new ConditionalTradeWs(sessionId, conditionalTradeService, orderService);
+    }
+
+    public AppWebSocketClient(URI serverUri, UserSubscriptionService subscriptionService,
+                              ObjectMapper objectMapper,
+                              OrderService orderService,
+                              String sessionId, ConditionalTradeService conditionalTradeService, ConditionalTradeWs conditionalTradeWs) {
+        super(serverUri);
+        this.subscriptionService = subscriptionService;
+        this.objectMapper = objectMapper;
+        this.sessionId = sessionId;
+        this.conditionalTradeWs = conditionalTradeWs;
     }
 
     @Override
@@ -120,6 +133,13 @@ public class AppWebSocketClient extends WebSocketClient {
         } catch (InvalidProtocolBufferException e) {
             log.error(e.getMessage(), e);
             return FeedResponse.getDefaultInstance();
+        }
+    }
+
+    public void connectToSocket() {
+        if (!this.isOpen()) {
+            log.info("Connection is not open, reconnecting...");
+            this.connect();
         }
     }
 }
