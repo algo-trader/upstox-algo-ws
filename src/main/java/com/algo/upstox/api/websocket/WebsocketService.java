@@ -34,7 +34,6 @@ public class WebsocketService {
     private static final Map<String, AppWebSocketClient> connectedClients = new HashMap<>();
 
     public void initiateWebsocket(String sessionId) {
-        var websocketApi = apiFactory.getApi(sessionId, WebsocketApi.class);
         var client = createWebSocketClient(resolveURI(sessionId), sessionId);
         connectedClients.put(sessionId, client);
         client.connect();
