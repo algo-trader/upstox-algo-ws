@@ -70,6 +70,12 @@ public class WebsocketService {
                 .ifPresent(app -> app.updateConditionalTrade(tradeId));
     }
 
+    public void closeRunningTrades(String sessionId) {
+        ping(sessionId);
+        Optional.ofNullable(connectedClients.get(sessionId))
+                .ifPresent(AppWebSocketClient::forceCloseTrades);
+    }
+
     public void disconnectWebsocket(String sessionId) {
         Optional.ofNullable(connectedClients.remove(sessionId))
                 .ifPresent(WebSocketClient::close);

@@ -58,6 +58,8 @@ public class WebSocketServerManager {
             websocketService.loadConditionalTrades(message.getPayload().getSessionId());
         } else if (activity == ActivityEnum.CONDITIONAL_DELETE) {
             websocketService.deactivateConditionalTrade(message.getPayload().getSessionId());
+        } else if (activity == ActivityEnum.FORCE_CLOSE) {
+            websocketService.closeRunningTrades(message.getPayload().getSessionId());
         }
     }
 

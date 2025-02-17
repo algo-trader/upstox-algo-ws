@@ -126,6 +126,10 @@ public class AppWebSocketClient extends WebSocketClient {
         conditionalTradeWs.deactivateConditionalTrade();
     }
 
+    public void forceCloseTrades() {
+        conditionalTradeWs.forceCloseRunningTrades();
+    }
+
     private FeedResponse handleBinaryMessage(ByteBuffer bytes) {
         try {
             return FeedResponse.parseFrom(bytes.array());
