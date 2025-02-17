@@ -91,6 +91,7 @@ public class ConditionalTradeWs {
                 deactivateConditionalTrade();
                 var trades = theConditionalTrade.getTradeRequests();
                 var executedTradeResponses = executeTrades(theConditionalTrade.getScrip(), trades);
+                executedTradeResponses.forEach(etr -> log.info("Executed trade response : {}", etr.getResponse()));
 
                 var orderIds = executedTradeResponses.stream()
                         .filter(res -> "success".equals(res.getStatus()) || "complete".equals(res.getStatus()))
@@ -99,6 +100,8 @@ public class ConditionalTradeWs {
                         .map(PlaceOrderResponse::getData)
                         .map(PlaceOrderData::getOrderId)
                         .toList();
+
+                log.info("Placed order id - {}", orderIds);
 
                 executedTradeResponses
                         .stream().filter(etr -> "failed".equals(etr.getStatus()) || "error".equals(etr.getStatus()))
