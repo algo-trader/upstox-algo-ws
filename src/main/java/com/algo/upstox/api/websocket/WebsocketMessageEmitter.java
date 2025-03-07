@@ -3,6 +3,7 @@ package com.algo.upstox.api.websocket;
 import com.algo.upstox.api.model.EmittedMessages;
 import com.algo.upstox.api.model.LtpcFeedMessage;
 import com.algo.upstox.api.model.MessageCategoryEnum;
+import com.algo.upstox.api.model.StraddleMessage;
 import com.algo.upstox.common.model.documents.BreakoutTradeDto;
 import com.algo.upstox.common.model.documents.UserSubscriptionDto;
 import com.algo.upstox.common.model.ws.FeedData;
@@ -31,6 +32,7 @@ public class WebsocketMessageEmitter {
 
     public static final String DESTINATION_TP = "/topic/messages/tp/";
     public static final String DESTINATION_LTPC = "/topic/messages/ltpc/";
+    public static final String DESTINATION_STRADDLE = "/topic/messages/straddle/";
 
     private final SimpMessagingTemplate template;
     private final ObjectMapper objectMapper;
@@ -68,6 +70,10 @@ public class WebsocketMessageEmitter {
         emitMessage(finalList, DESTINATION_LTPC, MessageCategoryEnum.LTPC, sessionId);
     }
 
+    public void emitStraddle(StraddleMessage straddleMessage, String sessionId) {
+        emitMessage(straddleMessage, DESTINATION_STRADDLE, MessageCategoryEnum.STRADDLE, sessionId);
+    }
+
     public static List<FeedData> toFeedList(FeedResponse response) {
         var map = response.getFeedsMap();
         var feeds = new ArrayList<FeedData>();
@@ -76,7 +82,6 @@ public class WebsocketMessageEmitter {
                 .instrumentKey(key)
                 .ltpc(isEmpty(value.getFf().getIndexFF()) ? buildLtpc(value.getFf().getMarketFF()) : buildLtpc(value.getFf().getIndexFF()))
                 .build()));
-
         return feeds;
     }
 
@@ -105,11 +110,12 @@ public class WebsocketMessageEmitter {
     private void emitMessage(Object message, String dest, MessageCategoryEnum category, String sessionId) {
         try {
             var url = dest + sessionId;
-            // log.info("Emitting message to {} - {} - {}", template.getUserDestinationPrefix(), template.getDefaultDestination(), url);
-            template.convertAndSend(url, objectMapper.writeValueAsString(EmittedMessages.builder()
+            var messageBody = objectMapper.writeValueAsString(EmittedMessages.builder()
                     .category(category)
                     .message(message)
-                    .build()));
+                    .build());
+            log.info("Emitting message to {} - {} - {} - {}", template.getUserDestinationPrefix(), template.getDefaultDestination(), url, messageBody);
+            template.convertAndSend(url, messageBody);
         } catch (JsonProcessingException e) {
             log.error("Unable to process json", e);
         }

@@ -4,6 +4,7 @@ import com.algo.upstox.api.WebSocketLoggedInUserService;
 import com.algo.upstox.api.websocket.WebsocketService;
 import com.algo.upstox.common.config.AppPropertyConfig.WebsocketAppConfig;
 import com.algo.upstox.common.model.WSMessageDto;
+import com.algo.upstox.common.model.platform.IndexEnum;
 import com.algo.upstox.common.model.ws.ActivityEnum;
 import com.algo.upstox.common.service.AuthService;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ import java.util.Optional;
 import static com.algo.upstox.api.util.WSConstants.NATIVE_HEADERS_KEY;
 import static com.algo.upstox.api.util.WSConstants.SESSION_ID_KEY;
 import static com.algo.upstox.api.util.WSConstants.SIMP_SESSION_ID_KEY;
+import static com.algo.upstox.common.constants.MessageConstants.INDEX;
 import static com.algo.upstox.common.constants.MessageConstants.TRADE_ID;
 
 @Controller
@@ -51,13 +53,32 @@ public class WebSocketServerManager {
         log.info("User pinged for trade data {} - {}", message.getHeaders(), message.getPayload().getActivity());
         var activity = message.getPayload().getActivity();
 
-        if (activity == ActivityEnum.CONDITIONAL_UPDATE) {
-            var tradeId = getNativeHeaderValue(message.getHeaders(), TRADE_ID);
-            websocketService.updateExecutingTrades(message.getPayload().getSessionId(), tradeId);
-        } else if (activity == ActivityEnum.CONDITIONAL_CREATE) {
-            websocketService.loadConditionalTrades(message.getPayload().getSessionId());
-        } else if (activity == ActivityEnum.CONDITIONAL_DELETE) {
-            websocketService.deactivateConditionalTrade(message.getPayload().getSessionId());
+        switch (activity) {
+            case CONDITIONAL_UPDATE -> {
+                var tradeId = getNativeHeaderValue(message.getHeaders(), TRADE_ID);
+                websocketService.updateExecutingTrades(message.getPayload().getSessionId(), tradeId);
+            }
+            case CONDITIONAL_CREATE -> {
+                websocketService.loadConditionalTrades(message.getPayload().getSessionId());
+            }
+            case CONDITIONAL_DELETE -> {
+                websocketService.deactivateConditionalTrade(message.getPayload().getSessionId());
+            }
+            case STRADDLE_CREATE -> {
+                var index = getNativeHeaderValue(message.getHeaders(), INDEX);
+                log.info("User pinged for straddle create {}", index);
+                websocketService.loadStraddleTotalPremiums(message.getPayload().getSessionId(), IndexEnum.valueOf(index));
+            }
+            case STRADDLE_UPDATE -> {
+                var index = getNativeHeaderValue(message.getHeaders(), INDEX);
+                log.info("User pinged for straddle update {}", index);
+                websocketService.loadStraddleTotalPremiums(message.getPayload().getSessionId(), IndexEnum.valueOf(index));
+            }
+            case STRADDLE_DELETE -> {
+                var index = getNativeHeaderValue(message.getHeaders(), INDEX);
+                log.info("User pinged for straddle delete {}", index);
+                websocketService.deleteStraddleTotalPremiums(message.getPayload().getSessionId(), IndexEnum.valueOf(index));
+            }
         }
     }
 

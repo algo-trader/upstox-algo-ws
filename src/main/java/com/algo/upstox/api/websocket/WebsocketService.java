@@ -1,8 +1,10 @@
 package com.algo.upstox.api.websocket;
 
 import com.algo.upstox.common.exception.AppApiException;
+import com.algo.upstox.common.model.platform.IndexEnum;
 import com.algo.upstox.common.service.ConditionalTradeService;
 import com.algo.upstox.common.service.OrderService;
+import com.algo.upstox.common.service.StraddleTotalPremiumService;
 import com.algo.upstox.common.service.UserSubscriptionService;
 import com.algo.upstox.common.service.impl.ApiFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,6 +32,8 @@ public class WebsocketService {
     private final ObjectMapper objectMapper;
     private final OrderService orderService;
     private final ConditionalTradeService conditionalTradeService;
+    private final StraddleTotalPremiumService straddleTotalPremiumService;
+    private final WebsocketMessageEmitter websocketMessageEmitter;
 
     private static final Map<String, AppWebSocketClient> connectedClients = new HashMap<>();
 
@@ -70,6 +74,18 @@ public class WebsocketService {
                 .ifPresent(app -> app.updateConditionalTrade(tradeId));
     }
 
+    public void loadStraddleTotalPremiums(String sessionId, IndexEnum index) {
+        ping(sessionId);
+        Optional.ofNullable(connectedClients.get(sessionId))
+                .ifPresent(app -> app.fetchStraddleTotalPremium(index));
+    }
+
+    public void deleteStraddleTotalPremiums(String sessionId, IndexEnum index) {
+        ping(sessionId);
+        Optional.ofNullable(connectedClients.get(sessionId))
+                .ifPresent(app -> app.deleteStraddleTotalPremium(index));
+    }
+
     public void disconnectWebsocket(String sessionId) {
         Optional.ofNullable(connectedClients.remove(sessionId))
                 .ifPresent(WebSocketClient::close);
@@ -77,7 +93,7 @@ public class WebsocketService {
 
     private AppWebSocketClient createWebSocketClient(String uri, String sessionId) {
         return new AppWebSocketClient(URI.create(uri), subscriptionService, objectMapper, orderService,
-                sessionId, conditionalTradeService);
+                sessionId, websocketMessageEmitter, conditionalTradeService, straddleTotalPremiumService);
     }
 
     private void ping(String sessionId) {
@@ -87,7 +103,8 @@ public class WebsocketService {
                         var existingWS = client.getConditionalTradeWs();
                         disconnectWebsocket(sessionId);
                         connectedClients.put(sessionId, new AppWebSocketClient(URI.create(resolveURI(sessionId)),
-                                subscriptionService, objectMapper, sessionId, existingWS));
+                                subscriptionService, objectMapper, sessionId, websocketMessageEmitter,
+                                existingWS, straddleTotalPremiumService));
                     }
                 });
     }
