@@ -91,6 +91,7 @@ public class ConditionalTradeWs {
                 deactivateConditionalTrade();
                 var trades = theConditionalTrade.getTradeRequests();
                 var executedTradeResponses = executeTrades(theConditionalTrade.getScrip(), trades);
+                executedTradeResponses.forEach(etr -> log.info("Executed trade response : {}", etr.getResponse()));
 
                 var orderIds = executedTradeResponses.stream()
                         .filter(res -> "success".equals(res.getStatus()) || "complete".equals(res.getStatus()))
@@ -99,6 +100,8 @@ public class ConditionalTradeWs {
                         .map(PlaceOrderResponse::getData)
                         .map(PlaceOrderData::getOrderId)
                         .toList();
+
+                log.info("Placed order id - {}", orderIds);
 
                 executedTradeResponses
                         .stream().filter(etr -> "failed".equals(etr.getStatus()) || "error".equals(etr.getStatus()))
@@ -151,11 +154,13 @@ public class ConditionalTradeWs {
 
         if (theExecutedTrade.getDirection() == TradeDirectionEnum.SHORT) {
             if (ltp > theExecutedTrade.getStopLossAt()) {
+                log.info("Stoploss criteria satisfied for short trade");
                 doCloseTrades(theExecutedTrade);
             }
         }
         if (theExecutedTrade.getDirection() == TradeDirectionEnum.LONG) {
             if (ltp < theExecutedTrade.getStopLossAt()) {
+                log.info("Stoploss criteria satisfied for long trade");
                 doCloseTrades(theExecutedTrade);
             }
         }
@@ -163,8 +168,7 @@ public class ConditionalTradeWs {
 
     private void doCloseTrades(ExecutedConditionalTradeDto theExecutedTrade) {
         List<String> orderIds = new ArrayList<>();
-        log.info("Stoploss criteria satisfied");
-        executedTrade.getExecutedTrades()
+        theExecutedTrade.getExecutedTrades()
                 .forEach(et -> {
                     var lots = et.getQuantity() / parseInt(et.getInstrument().getLotSize());
 
@@ -251,11 +255,25 @@ public class ConditionalTradeWs {
                 .ifPresent(saved -> log.info("Trade with ID {} deactivated", saved.getId()));
     }
 
+    public void forceCloseRunningTrades() {
+        if(this.executedTrade != null) {
+            log.info("Force-Closing running trades");
+            doCloseTrades(this.executedTrade);
+        } else {
+            log.warn("No executed trade found");
+        }
+    }
+
     public void fetchRunningTradesOnConnect() {
-        log.info("Fetching running trades and conditional trades");
         conditionalTradeService.getActiveConditionalTrade(sessionId)
                 .ifPresent(this::setConditionalTrade);
         conditionalTradeService.getActiveExecutedTradeForUser(sessionId)
                 .ifPresent(this::setExecutedTrade);
+        if (this.conditionalTrade != null) {
+            log.info("Fetched conditional trade");
+        }
+        if (this.executedTrade != null) {
+            log.info("Fetched executed trade");
+        }
     }
 }

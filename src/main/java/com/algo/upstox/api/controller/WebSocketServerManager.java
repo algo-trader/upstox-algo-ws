@@ -5,7 +5,6 @@ import com.algo.upstox.api.websocket.WebsocketService;
 import com.algo.upstox.common.config.AppPropertyConfig.WebsocketAppConfig;
 import com.algo.upstox.common.model.WSMessageDto;
 import com.algo.upstox.common.model.platform.IndexEnum;
-import com.algo.upstox.common.model.ws.ActivityEnum;
 import com.algo.upstox.common.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -63,6 +62,9 @@ public class WebSocketServerManager {
             }
             case CONDITIONAL_DELETE -> {
                 websocketService.deactivateConditionalTrade(message.getPayload().getSessionId());
+            }
+            case FORCE_CLOSE -> {
+                websocketService.closeRunningTrades(message.getPayload().getSessionId());
             }
             case STRADDLE_CREATE -> {
                 var index = getNativeHeaderValue(message.getHeaders(), INDEX);

@@ -160,6 +160,10 @@ public class AppWebSocketClient extends WebSocketClient {
         straddleWs.deleteStraddle(index);
     }
 
+    public void forceCloseTrades() {
+        conditionalTradeWs.forceCloseRunningTrades();
+    }
+
     private FeedResponse handleBinaryMessage(ByteBuffer bytes) {
         try {
             return FeedResponse.parseFrom(bytes.array());
