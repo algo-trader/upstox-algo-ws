@@ -1,8 +1,12 @@
 package com.algo.upstox.api.controller;
 
 import com.algo.upstox.api.WebSocketLoggedInUserService;
+import com.algo.upstox.api.model.AlertDisplayTypeEnum;
+import com.algo.upstox.api.model.AlertDto;
+import com.algo.upstox.api.websocket.WebsocketMessageEmitter;
 import com.algo.upstox.api.websocket.WebsocketService;
 import com.algo.upstox.common.config.AppPropertyConfig.WebsocketAppConfig;
+import com.algo.upstox.common.model.AlertTypeEnum;
 import com.algo.upstox.common.model.WSMessageDto;
 import com.algo.upstox.common.model.platform.IndexEnum;
 import com.algo.upstox.common.service.AuthService;
@@ -28,8 +32,10 @@ import java.util.Optional;
 import static com.algo.upstox.api.util.WSConstants.NATIVE_HEADERS_KEY;
 import static com.algo.upstox.api.util.WSConstants.SESSION_ID_KEY;
 import static com.algo.upstox.api.util.WSConstants.SIMP_SESSION_ID_KEY;
+import static com.algo.upstox.api.util.WSConstants.USER_KEY;
 import static com.algo.upstox.common.constants.MessageConstants.INDEX;
 import static com.algo.upstox.common.constants.MessageConstants.TRADE_ID;
+import static java.util.Objects.isNull;
 
 @Controller
 @RequiredArgsConstructor
@@ -41,6 +47,7 @@ public class WebSocketServerManager {
     private final WebSocketLoggedInUserService webSocketLoggedInUserService;
     private final AuthService authService;
     private final WebsocketAppConfig websocketAppConfig;
+    private final WebsocketMessageEmitter messageEmitter;
 
     @MessageMapping("/user/tradeData")
     public void notificationFromUser(@Header(SESSION_ID_KEY) String sessionId, GenericMessage message) {
@@ -69,17 +76,43 @@ public class WebSocketServerManager {
             case STRADDLE_CREATE -> {
                 var index = getNativeHeaderValue(message.getHeaders(), INDEX);
                 log.info("User pinged for straddle create {}", index);
-                websocketService.loadStraddleTotalPremiums(message.getPayload().getSessionId(), IndexEnum.valueOf(index));
+                var sessionId = message.getPayload().getSessionId();
+                websocketService.loadStraddleTotalPremiums(sessionId, IndexEnum.valueOf(index));
+                messageEmitter.emitAlertMessage(AlertDto.builder()
+                                .alertText("Straddle created!!")
+                                .alertType(AlertTypeEnum.STRADDLE_CREATE)
+                                .alertDisplayType(AlertDisplayTypeEnum.SUCCESS.getClassNames())
+                                .timeout(5000)
+                        .build(), sessionId);
+
             }
             case STRADDLE_UPDATE -> {
                 var index = getNativeHeaderValue(message.getHeaders(), INDEX);
                 log.info("User pinged for straddle update {}", index);
-                websocketService.loadStraddleTotalPremiums(message.getPayload().getSessionId(), IndexEnum.valueOf(index));
+                var sessionId = message.getPayload().getSessionId();
+                websocketService.loadStraddleTotalPremiums(sessionId, IndexEnum.valueOf(index));
+                messageEmitter.emitAlertMessage(AlertDto.builder()
+                        .alertText("Straddle updated!!")
+                        .alertType(AlertTypeEnum.STRADDLE_UPDATE)
+                        .alertDisplayType(AlertDisplayTypeEnum.INFO.getClassNames())
+                        .timeout(5000)
+                        .build(), sessionId);
             }
             case STRADDLE_DELETE -> {
                 var index = getNativeHeaderValue(message.getHeaders(), INDEX);
                 log.info("User pinged for straddle delete {}", index);
-                websocketService.deleteStraddleTotalPremiums(message.getPayload().getSessionId(), IndexEnum.valueOf(index));
+                var sessionId = message.getPayload().getSessionId();
+                websocketService.deleteStraddleTotalPremiums(sessionId, IndexEnum.valueOf(index));
+                messageEmitter.emitAlertMessage(AlertDto.builder()
+                        .alertText("Straddle deleted!!")
+                        .alertType(AlertTypeEnum.STRADDLE_DELETE)
+                        .alertDisplayType(AlertDisplayTypeEnum.DANGER.getClassNames())
+                        .timeout(5000)
+                        .build(), sessionId);
+            }
+            case SUBSCRIBE -> {
+                log.info("User has updated subscription");
+                websocketService.refreshSubscription(message.getPayload().getSessionId());
             }
         }
     }
@@ -96,11 +129,13 @@ public class WebSocketServerManager {
         var simpSessionId = extractSimpSession(event.getMessage());
 
         var userSessionId = getNativeHeaderValue(event.getMessage().getHeaders(), SESSION_ID_KEY);
+        if (isNull(userSessionId)) {
+            userSessionId = getNativeHeaderValue(event.getMessage().getHeaders(), USER_KEY);
+        }
 
         log.info("Client details - SimpSession ID - {}, UserSessionId - {}", simpSessionId, userSessionId);
 
         websocketService.initiateWebsocket(userSessionId);
-
         webSocketLoggedInUserService.updateSessionDetails(userSessionId, simpSessionId);
     }
 
@@ -115,7 +150,9 @@ public class WebSocketServerManager {
 
     @EventListener
     public void handleSessionSubscribed(SessionSubscribeEvent event) {
-        log.info("Client Subscribed {}", event.getSource());
+        var destination = getNativeHeaderValue(event.getMessage().getHeaders(), "destination");
+        var id = getNativeHeaderValue(event.getMessage().getHeaders(), "id");
+        log.info("Client Subscribed {} - {}", id, destination);
     }
 
     private String extractSimpSession(Message<byte[]> message) {

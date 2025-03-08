@@ -36,19 +36,39 @@ public class WebsocketService {
     private final WebsocketMessageEmitter websocketMessageEmitter;
 
     private static final Map<String, AppWebSocketClient> connectedClients = new HashMap<>();
+    private static final Map<String, PositionFeedClient> connectedPositionFeedClients = new HashMap<>();
 
     public void initiateWebsocket(String sessionId) {
-        var client = createWebSocketClient(resolveURI(sessionId), sessionId);
-        connectedClients.put(sessionId, client);
-        client.connect();
+        var webSocketClient = createWebSocketClient(resolveMarketDataFeedURI(sessionId), sessionId);
+        var positionFeedClient = createPositionFeedClient(resolvePositionDataFeedURI(sessionId), sessionId);
+        connectedClients.put(sessionId, webSocketClient);
+        connectedPositionFeedClients.put(sessionId, positionFeedClient);
+        webSocketClient.connect();
+        positionFeedClient.connect();
     }
 
-    private String resolveURI(String sessionId) {
+    private String resolveMarketDataFeedURI(String sessionId) {
         var websocketApi = apiFactory.getApi(sessionId, WebsocketApi.class);
         try {
             var response = websocketApi.getMarketDataFeedAuthorize(API_VERSION);
+            websocketApi.setPositionUpdate(true);
             var uri = response.getData().getAuthorizedRedirectUri();
-            log.info("Portfolio URI - {}", uri);
+            log.info("Market data feed URI - {}", uri);
+            return uri;
+        } catch (ApiException e) {
+            log.error(e.getMessage(), e);
+            throw new AppApiException(e.getMessage(), e);
+        }
+    }
+
+    private String resolvePositionDataFeedURI(String sessionId) {
+        var websocketApi = apiFactory.getApi(sessionId, WebsocketApi.class);
+        try {
+            websocketApi.setPositionUpdate(true);
+            var portfolioFeedResponse = websocketApi.getPortfolioStreamFeedAuthorize(API_VERSION);
+            portfolioFeedResponse.getData().getAuthorizedRedirectUri();
+            var uri = portfolioFeedResponse.getData().getAuthorizedRedirectUri();
+            log.info("Position Feed URI - {}", uri);
             return uri;
         } catch (ApiException e) {
             log.error(e.getMessage(), e);
@@ -97,9 +117,19 @@ public class WebsocketService {
                 .ifPresent(WebSocketClient::close);
     }
 
+    public void refreshSubscription(String sessionId) {
+        ping(sessionId);
+        Optional.ofNullable(connectedClients.get(sessionId))
+                .ifPresent(AppWebSocketClient::refreshSubscription);
+    }
+
     private AppWebSocketClient createWebSocketClient(String uri, String sessionId) {
         return new AppWebSocketClient(URI.create(uri), subscriptionService, objectMapper, orderService,
                 sessionId, websocketMessageEmitter, conditionalTradeService, straddleTotalPremiumService);
+    }
+
+    private PositionFeedClient createPositionFeedClient(String uri, String sessionId) {
+        return new PositionFeedClient(URI.create(uri), sessionId);
     }
 
     private void ping(String sessionId) {
@@ -108,7 +138,7 @@ public class WebsocketService {
                     if (!client.isOpen()) {
                         var existingWS = client.getConditionalTradeWs();
                         disconnectWebsocket(sessionId);
-                        connectedClients.put(sessionId, new AppWebSocketClient(URI.create(resolveURI(sessionId)),
+                        connectedClients.put(sessionId, new AppWebSocketClient(URI.create(resolveMarketDataFeedURI(sessionId)),
                                 subscriptionService, objectMapper, sessionId, websocketMessageEmitter,
                                 existingWS, straddleTotalPremiumService));
                     }
