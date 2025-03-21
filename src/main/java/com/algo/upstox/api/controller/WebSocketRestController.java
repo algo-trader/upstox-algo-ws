@@ -18,7 +18,7 @@ public class WebSocketRestController {
 
     @PostMapping
     public ResponseEntity<Object> initiate(@RequestHeader(name = SESSION_ID_HEADER, required = false) String sessionId) {
-        websocketService.initiateWebsocket(sessionId);
+        websocketService.initiateAllWebsockets(sessionId);
         return ResponseEntity.ok().build();
     }
 }

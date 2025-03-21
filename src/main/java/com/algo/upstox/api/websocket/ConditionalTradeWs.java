@@ -15,9 +15,11 @@ import com.upstox.api.PlaceOrderData;
 import com.upstox.api.PlaceOrderRequest.ProductEnum;
 import com.upstox.api.PlaceOrderRequest.TransactionTypeEnum;
 import com.upstox.api.PlaceOrderResponse;
-import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed;
-import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed.FeedResponse;
-import lombok.RequiredArgsConstructor;
+import com.upstox.feeder.MarketUpdateV3;
+import com.upstox.feeder.MarketUpdateV3.Feed;
+import com.upstox.feeder.MarketUpdateV3.FullFeed;
+import com.upstox.feeder.MarketUpdateV3.IndexFullFeed;
+import com.upstox.feeder.MarketUpdateV3.LTPC;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.CollectionUtils;
@@ -28,6 +30,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.algo.upstox.common.config.ApplicationContextProvider.getBean;
 import static com.algo.upstox.common.constants.AppConstants.reverseOf;
 import static com.algo.upstox.common.model.conditional.CompareEnum.ABOVE;
 import static com.algo.upstox.common.model.conditional.CompareEnum.BELOW;
@@ -37,21 +40,26 @@ import static java.lang.Integer.parseInt;
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 
-@RequiredArgsConstructor
 @Slf4j
 public class ConditionalTradeWs {
     private final String sessionId;
     private final ConditionalTradeService conditionalTradeService;
     private final OrderService orderService;
 
+    public ConditionalTradeWs(final String sessionId) {
+        this.sessionId = sessionId;
+        conditionalTradeService = getBean(ConditionalTradeService.class);
+        orderService = getBean(OrderService.class);
+    }
+
     @Setter
     private ConditionalTradeDto conditionalTrade;
     @Setter
     private ExecutedConditionalTradeDto executedTrade;
 
-    public void runConditionalTrade(FeedResponse response) {
-        makeEntry(response);
-        performExit(response);
+    public void runConditionalTrade(MarketUpdateV3 marketData) {
+        makeEntry(marketData);
+        performExit(marketData);
     }
 
     public void loadConditionalTrade() {
@@ -67,7 +75,7 @@ public class ConditionalTradeWs {
                 .ifPresent(this::setExecutedTrade);
     }
 
-    private void makeEntry(FeedResponse response) {
+    private void makeEntry(MarketUpdateV3 response) {
         if (conditionalTrade == null) {
             return;
         }
@@ -139,7 +147,7 @@ public class ConditionalTradeWs {
         }
     }
 
-    private void performExit(FeedResponse response) {
+    private void performExit(MarketUpdateV3 response) {
         if (executedTrade == null) {
             return;
         }
@@ -190,14 +198,14 @@ public class ConditionalTradeWs {
         setExecutedTrade(null);
     }
 
-    private double getLtp(FeedResponse response, Scrip scrip) {
+    private double getLtp(MarketUpdateV3 response, Scrip scrip) {
         return Optional.ofNullable(response)
-                .map(FeedResponse::getFeedsMap)
+                .map(MarketUpdateV3::getFeeds)
                 .map(map -> map.get(scrip.getTradingSymbol()))
-                .map(MarketDataFeed.Feed::getFf)
-                .map(MarketDataFeed.FullFeed::getIndexFF)
-                .map(MarketDataFeed.IndexFullFeed::getLtpc)
-                .map(MarketDataFeed.LTPC::getLtp)
+                .map(Feed::getFullFeed)
+                .map(FullFeed::getIndexFF)
+                .map(IndexFullFeed::getLtpc)
+                .map(LTPC::getLtp)
                 .orElse(-1.0);
     }
 

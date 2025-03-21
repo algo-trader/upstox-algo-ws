@@ -135,7 +135,7 @@ public class WebSocketServerManager {
 
         log.info("Client details - SimpSession ID - {}, UserSessionId - {}", simpSessionId, userSessionId);
 
-        websocketService.initiateWebsocket(userSessionId);
+        websocketService.initiateAllWebsockets(userSessionId);
         webSocketLoggedInUserService.updateSessionDetails(userSessionId, simpSessionId);
     }
 
@@ -185,7 +185,7 @@ public class WebSocketServerManager {
                                 String sessionId = (String) ((List<?>) h.get(websocketAppConfig.getHeaderUserKey())).get(0);
                                 var user = authService.getLoggedInUser(sessionId);
                                 log.info("API connected via user {}", user.getUserName());
-                                websocketService.initiateWebsocket(user.getSessionId());
+                                websocketService.initiateAllWebsockets(user.getSessionId());
                                 return true;
                             } catch (Exception e) {
                                 log.error("Unable to authenticate user", e);

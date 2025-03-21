@@ -1,47 +1,77 @@
 package com.algo.upstox.api.websocket;
 
+import com.upstox.feeder.GttUpdate;
+import com.upstox.feeder.HoldingUpdate;
+import com.upstox.feeder.OrderUpdate;
+import com.upstox.feeder.PortfolioDataStreamer;
+import com.upstox.feeder.PositionUpdate;
 import lombok.extern.slf4j.Slf4j;
-import org.java_websocket.client.WebSocketClient;
-import org.java_websocket.handshake.ServerHandshake;
 
-import java.net.URI;
-import java.nio.ByteBuffer;
-
-import static com.algo.upstox.api.websocket.AppWebSocketClient.handleBinaryMessage;
+import static com.algo.upstox.api.websocket.SessionDataStore.getApiClient;
 
 @Slf4j
-public class PositionFeedClient extends WebSocketClient {
+public class PositionFeedClient {
     private final String sessionId;
+    private final PortfolioDataStreamer streamer;
 
-    public PositionFeedClient(URI serverUri, String sessionId) {
-        super(serverUri);
+    public static PositionFeedClient createPositionFeedClient(String sessionId) {
+        return new PositionFeedClient(sessionId);
+    }
+
+    private PositionFeedClient(String sessionId) {
         this.sessionId = sessionId;
+        this.streamer = initiateStreamer();
+
+        streamer.connect();
     }
 
-    @Override
-    public void onOpen(ServerHandshake serverHandshake) {
-        log.info("::::PositionFeedClient :: onOpen:::: {} - {}", serverHandshake.getHttpStatus(), serverHandshake.getHttpStatusMessage());
+    private PortfolioDataStreamer initiateStreamer() {
+        var portfolioStreamer = new PortfolioDataStreamer(getApiClient(sessionId), true, true, true, true);
+
+        portfolioStreamer.setOnHoldingUpdateListener(this::onHoldingUpdate);
+        portfolioStreamer.setOnOrderUpdateListener(this::onOrderUpdate);
+        portfolioStreamer.setOnPositionUpdateListener(this::onPositionUpdate);
+        portfolioStreamer.setOnGttUpdateListener(this::onGttUpdate);
+
+        portfolioStreamer.setOnErrorListener(this::onError);
+        portfolioStreamer.setOnCloseListener(this::onClose);
+        portfolioStreamer.setOnOpenListener(this::onOpen);
+
+        portfolioStreamer.autoReconnect(true, 3, 15);
+
+        return portfolioStreamer;
     }
 
-    @Override
-    public void onMessage(String s) {
-        log.info("::::PositionFeedClient :: onMessage:::: {}", s);
+    private void onGttUpdate(GttUpdate gttUpdate) {
+        log.info("GTTUpdate received: {}", gttUpdate);
     }
 
-    @Override
-    public void onMessage(ByteBuffer buffer) {
-        log.debug("Received binary message: {}", buffer);
-        var response = handleBinaryMessage(buffer);
-        log.info("::::PositionFeedClient :: onMessage Bytes :::: {}", response);
+    private void onPositionUpdate(PositionUpdate positionUpdate) {
+        log.info("onPositionUpdate: {}", positionUpdate);
     }
 
-    @Override
-    public void onClose(int i, String s, boolean b) {
+    private void onOrderUpdate(OrderUpdate orderUpdate) {
+        log.info("onOrderUpdate: {}", orderUpdate);
+    }
+
+    private void onHoldingUpdate(HoldingUpdate holdingUpdate) {
+        log.info("onHoldingUpdate: {}", holdingUpdate);
+    }
+
+    public void onOpen() {
+        log.info("::::PositionFeedClient :: onOpen::::");
+    }
+
+    public void onClose(int i, String s) {
         log.info("::::PositionFeedClient :: onClose:::: {}", s);
     }
 
-    @Override
-    public void onError(Exception e) {
+    public void onError(Throwable e) {
         log.error("::::PositionFeedClient :: ERROR::::", e);
+    }
+
+    public void disconnect() {
+        log.info("::::PositionFeedClient :: disconnect");
+        this.streamer.disconnect();
     }
 }

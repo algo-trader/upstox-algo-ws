@@ -6,8 +6,11 @@ import com.algo.upstox.common.model.documents.StraddleStrikeDto;
 import com.algo.upstox.common.model.platform.IndexEnum;
 import com.algo.upstox.common.service.StraddleTotalPremiumService;
 import com.google.common.util.concurrent.AtomicDouble;
-import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed;
-import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed.FeedResponse;
+import com.upstox.feeder.MarketUpdateV3;
+import com.upstox.feeder.MarketUpdateV3.Feed;
+import com.upstox.feeder.MarketUpdateV3.FullFeed;
+import com.upstox.feeder.MarketUpdateV3.LTPC;
+import com.upstox.feeder.MarketUpdateV3.MarketFullFeed;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -16,6 +19,7 @@ import java.util.Optional;
 
 import static com.algo.upstox.api.model.AlertDisplayTypeEnum.DANGER_BLINK;
 import static com.algo.upstox.api.model.AlertDisplayTypeEnum.INFO_BLINK;
+import static com.algo.upstox.common.config.ApplicationContextProvider.getBean;
 import static com.algo.upstox.common.model.AlertTypeEnum.CROSSING_DOWN;
 import static com.algo.upstox.common.model.AlertTypeEnum.CROSSING_UP;
 import static com.algo.upstox.common.model.AlertTypeEnum.INSTRUMENT_COMPARISON;
@@ -33,11 +37,10 @@ public class StraddleWs {
     AtomicDouble atomicCeLtp = new AtomicDouble();
     AtomicDouble atomicPeLtp = new AtomicDouble();
 
-    public StraddleWs(String sessionId, StraddleTotalPremiumService straddleTotalPremiumService,
-                      WebsocketMessageEmitter websocketMessageEmitter) {
+    public StraddleWs(String sessionId) {
         this.sessionId = sessionId;
-        this.straddleTotalPremiumService = straddleTotalPremiumService;
-        this.websocketMessageEmitter = websocketMessageEmitter;
+        this.straddleTotalPremiumService = getBean(StraddleTotalPremiumService.class);
+        this.websocketMessageEmitter = getBean(WebsocketMessageEmitter.class);
     }
 
     void fetchStraddle(IndexEnum index) {
@@ -55,13 +58,13 @@ public class StraddleWs {
         straddleMap.remove(index);
     }
 
-    public void runStraddleTotalPremium(FeedResponse response) {
+    public void runStraddleTotalPremium(MarketUpdateV3 marketData) {
         straddleMap.values().forEach(straddle -> {
             var ce = straddle.getCeInstrument();
             var pe = straddle.getPeInstrument();
 
-            var ceLtp = getLtp(response, ce.getInstrumentKey());
-            var peLtp = getLtp(response, pe.getInstrumentKey());
+            var ceLtp = getLtp(marketData, ce.getInstrumentKey());
+            var peLtp = getLtp(marketData, pe.getInstrumentKey());
 
             if (ceLtp == 0 && peLtp == 0) {
                 return;
@@ -131,14 +134,14 @@ public class StraddleWs {
         });
     }
 
-    private double getLtp(FeedResponse response, String instrumentKey) {
-        return Optional.ofNullable(response)
-                .map(FeedResponse::getFeedsMap)
+    private double getLtp(MarketUpdateV3 marketData, String instrumentKey) {
+        return Optional.ofNullable(marketData)
+                .map(MarketUpdateV3::getFeeds)
                 .map(map -> map.get(instrumentKey))
-                .map(MarketDataFeed.Feed::getFf)
-                .map(MarketDataFeed.FullFeed::getMarketFF)
-                .map(MarketDataFeed.MarketFullFeed::getLtpc)
-                .map(MarketDataFeed.LTPC::getLtp)
+                .map(Feed::getFullFeed)
+                .map(FullFeed::getMarketFF)
+                .map(MarketFullFeed::getLtpc)
+                .map(LTPC::getLtp)
                 .orElse(0.0);
     }
 }

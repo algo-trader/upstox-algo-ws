@@ -22,6 +22,9 @@ logging:
     org.mongodb: OFF
     com.mongodb: OFF
     org.springframework: INFO
+  structured:
+    format:
+      console: ecs
 
 trade:
   rr-ratio: 1

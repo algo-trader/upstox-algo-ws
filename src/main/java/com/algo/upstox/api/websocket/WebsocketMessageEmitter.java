@@ -15,11 +15,11 @@ import com.algo.upstox.common.model.ws.LTPC;
 import com.algo.upstox.common.model.ws.OptionGreeks;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed;
-import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed.Feed;
-import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed.FeedResponse;
-import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed.MarketFullFeed;
-import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed.MarketLevel;
+import com.upstox.feeder.MarketUpdateV3;
+import com.upstox.feeder.MarketUpdateV3.Feed;
+import com.upstox.feeder.MarketUpdateV3.IndexFullFeed;
+import com.upstox.feeder.MarketUpdateV3.MarketFullFeed;
+import com.upstox.feeder.MarketUpdateV3.MarketLevel;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -64,60 +64,18 @@ public class WebsocketMessageEmitter {
         emitMessage("", DESTINATION_SUBSCRIBE_NOTIFY, MessageCategoryEnum.SUBSCRIBE, sessionId);
     }
 
-    public void emitLtpc(UserSubscriptionDto userSubscription, FeedResponse feedResponse, String sessionId) {
-        var map = feedResponse.getFeedsMap();
-        List<LtpcFeed> feeds = new ArrayList<>();
-        List<String> keys = new ArrayList<>();
-        map.forEach((key, value) -> {
-            Optional.ofNullable(userSubscription)
-                    .map(UserSubscriptionDto::getSubscriptionList)
-                    .ifPresent(list -> {
-                        list.forEach(item -> {
-                            if (key.equals(item.getInstrumentToken())) {
-                                feeds.add(convertToFeedData(item, value));
-                            }
-                        });
-                    });
-        });
-        feeds.sort(Comparator.comparing(LtpcFeed::getIndex));
-        var finalList = LtpcFeedMessage.builder()
-                .keys(feeds.stream().map(LtpcFeed::getTradingSymbol).toList())
-                .feedMap(feeds.stream().collect(Collectors.toMap(LtpcFeed::getTradingSymbol, ltpcFeed -> ltpcFeed)))
-                .build();
-
-        if (ltpMap.containsKey(sessionId)) {
-            var existing = ltpMap.get(sessionId);
-            var existingKeys = existing.getKeys();
-            var newList = new ArrayList<String>();
-            finalList.getKeys().forEach(key -> {
-                newList.add(key);
-                if (existingKeys.contains(key)) {
-                    existing.getFeedMap().put(key, finalList.getFeedMap().get(key));
-                } else {
-                    existing.getFeedMap().put(key, finalList.getFeedMap().get(key));
-                }
-            });
-            existing.setKeys(newList);
-            ltpMap.put(sessionId, existing);
-        } else {
-            ltpMap.put(sessionId, finalList);
-        }
-
-        emitMessage(ltpMap.get(sessionId), DESTINATION_LTPC, MessageCategoryEnum.LTPC, sessionId);
-    }
-
     private LtpcFeed convertToFeedData(SubscriptionDataDto item, Feed value) {
-       return LtpcFeed.builder()
+        return LtpcFeed.builder()
                 .index(item.getIndex())
                 .tradingSymbol(item.getTradingSymbol())
                 .exchange(item.getDisplay().getExchange())
                 .expiry(item.getDisplay().getExpiry())
                 .fullName(item.getDisplay().getName())
-                .feedData(convertToFeedData(value.getFf()))
+                .feedData(convertToFeedData(value.getFullFeed()))
                 .build();
     }
 
-    private FeedData convertToFeedData(MarketDataFeed.FullFeed fullFeed) {
+    private FeedData convertToFeedData(MarketUpdateV3.FullFeed fullFeed) {
         if (isEmpty(fullFeed.getIndexFF())) {
             if (isEmpty(fullFeed.getMarketFF())) {
                 return null;
@@ -134,21 +92,21 @@ public class WebsocketMessageEmitter {
         }
     }
 
-    private List<BidAsk> convertToBidAsk(MarketLevel marketLevel) {
+    private List<BidAsk> convertToBidAsk(MarketUpdateV3.MarketLevel marketLevel) {
         return Optional.ofNullable(marketLevel)
-                .map(MarketLevel::getBidAskQuoteList)
+                .map(MarketLevel::getBidAskQuote)
                 .orElseGet(Collections::emptyList)
                 .stream()
                 .map(bidAskQuote -> BidAsk.builder()
-                        .askPrice(bidAskQuote.getAp())
+                        .askPrice(bidAskQuote.getAskP())
                         .askQuantity(bidAskQuote.getAskQ())
-                        .bidPrice(bidAskQuote.getBp())
+                        .bidPrice(bidAskQuote.getBidP())
                         .bidQuantity(bidAskQuote.getBidQ())
                         .build())
                 .toList();
     }
 
-    private OptionGreeks convertToOptionGreeks(MarketDataFeed.OptionGreeks optionGreeks) {
+    private OptionGreeks convertToOptionGreeks(MarketUpdateV3.OptionGreeks optionGreeks) {
         if (isNull(optionGreeks)) {
             return null;
         }
@@ -156,9 +114,7 @@ public class WebsocketMessageEmitter {
                 .delta(formattedDouble(optionGreeks.getDelta()))
                 .gamma(formattedDouble(optionGreeks.getGamma()))
                 .rho(formattedDouble(optionGreeks.getRho()))
-                .impliedVolatility(formattedDouble(optionGreeks.getIv()))
                 .theta(formattedDouble(optionGreeks.getTheta()))
-                .underlierPrice(formattedDouble(optionGreeks.getUp()))
                 .vega(formattedDouble(optionGreeks.getVega()))
                 .build();
     }
@@ -184,15 +140,15 @@ public class WebsocketMessageEmitter {
                 .build();
     }
 
-    private static boolean isEmpty(MarketDataFeed.IndexFullFeed indexFullFeed) {
+    private static boolean isEmpty(IndexFullFeed indexFullFeed) {
         return indexFullFeed == null || indexFullFeed.getLtpc().getLtp() == 0;
     }
 
-    private static boolean isEmpty(MarketDataFeed.MarketFullFeed marketFullFeed) {
+    private static boolean isEmpty(MarketUpdateV3.MarketFullFeed marketFullFeed) {
         return marketFullFeed == null || marketFullFeed.getLtpc().getLtp() == 0;
     }
 
-    private static LTPC buildLtpc(MarketDataFeed.IndexFullFeed indexFullFeed) {
+    private static LTPC buildLtpc(IndexFullFeed indexFullFeed) {
         return LTPC.builder()
                 .ltp(indexFullFeed.getLtpc().getLtp())
                 .lastTradedQuantity(indexFullFeed.getLtpc().getLtq())
@@ -208,7 +164,7 @@ public class WebsocketMessageEmitter {
                     .category(category)
                     .message(message)
                     .build());
-             log.debug("Emitting message to {} - {} - {}", template.getUserDestinationPrefix(), url, messageBody);
+            log.debug("Emitting message to {} - {} - {}", template.getUserDestinationPrefix(), url, messageBody);
             template.convertAndSend(url, messageBody);
         } catch (JsonProcessingException e) {
             log.error("Unable to process json", e);
@@ -216,4 +172,45 @@ public class WebsocketMessageEmitter {
     }
 
 
+    public void emitLtpc(UserSubscriptionDto userSubscription, MarketUpdateV3 marketData, String sessionId) {
+        List<LtpcFeed> feeds = new ArrayList<>();
+        Optional.ofNullable(marketData.getFeeds())
+                .ifPresent(map -> {
+                    map.forEach((key, value) -> Optional.ofNullable(userSubscription)
+                            .map(UserSubscriptionDto::getSubscriptionList)
+                            .ifPresent(list -> {
+                                list.forEach(item -> {
+                                    if (key.equals(item.getInstrumentToken())) {
+                                        feeds.add(convertToFeedData(item, value));
+                                    }
+                                });
+                            }));
+                    feeds.sort(Comparator.comparing(LtpcFeed::getIndex));
+                    var finalList = LtpcFeedMessage.builder()
+                            .keys(feeds.stream().map(LtpcFeed::getTradingSymbol).toList())
+                            .feedMap(feeds.stream().collect(Collectors.toMap(LtpcFeed::getTradingSymbol, ltpcFeed -> ltpcFeed)))
+                            .build();
+
+                    if (ltpMap.containsKey(sessionId)) {
+                        var existing = ltpMap.get(sessionId);
+                        var existingKeys = existing.getKeys();
+                        var newList = new ArrayList<String>();
+                        finalList.getKeys().forEach(key -> {
+                            newList.add(key);
+                            if (existingKeys.contains(key)) {
+                                existing.getFeedMap().put(key, finalList.getFeedMap().get(key));
+                            } else {
+                                existing.getFeedMap().put(key, finalList.getFeedMap().get(key));
+                            }
+                        });
+                        existing.setKeys(newList);
+                        ltpMap.put(sessionId, existing);
+                    } else {
+                        ltpMap.put(sessionId, finalList);
+                    }
+
+                    emitMessage(ltpMap.get(sessionId), DESTINATION_LTPC, MessageCategoryEnum.LTPC, sessionId);
+                });
+
+    }
 }
