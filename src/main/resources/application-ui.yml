@@ -1,0 +1,6 @@
+spring:
+  data:
+    mongodb:
+      uri: ${DB_CONN_STRING}
+      database: ${DB_SCHEMA_NAME}
+      username: ${DB_USER_ARN}

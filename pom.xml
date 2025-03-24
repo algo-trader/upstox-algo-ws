@@ -9,7 +9,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <artifactId>upstox-algo-ws</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.1-SNAPSHOT</version>
     <name>upstox-algo-api</name>
     <description>Websocket Application for real-time update</description>
 
@@ -22,7 +22,7 @@
         <dependency>
             <groupId>com.algo</groupId>
             <artifactId>upstox-common-lib</artifactId>
-            <version>2.0.0</version>
+            <version>2.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -91,11 +91,11 @@
             <groupId>com.squareup.okio</groupId>
             <artifactId>okio</artifactId>
         </dependency>
-        <dependency>
+        <!--<dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-layout-template-json</artifactId>
             <version>2.23.1</version>
-        </dependency>
+        </dependency>-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -110,6 +110,7 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
         </plugins>
+        <finalName>upstox-algo-ws</finalName>
     </build>
 
     <repositories>
