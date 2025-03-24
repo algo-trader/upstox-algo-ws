@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import static com.algo.upstox.constants.AppConstants.SESSION_ID_HEADER;
+import static com.algo.upstox.common.constants.AppConstants.SESSION_ID_HEADER;
 
 @RestController
 @RequestMapping("/ws-connect")
@@ -18,7 +18,7 @@ public class WebSocketRestController {
 
     @PostMapping
     public ResponseEntity<Object> initiate(@RequestHeader(name = SESSION_ID_HEADER, required = false) String sessionId) {
-        websocketService.initiateWebsocket(sessionId);
+        websocketService.initiateAllWebsockets(sessionId);
         return ResponseEntity.ok().build();
     }
 }

@@ -1,6 +1,10 @@
 spring:
   application:
-    name: upstox-api-test
+    name: upstox-algo-ws
+  config:
+    import: file:${FILE_LOCATION}
+  profiles:
+    active: ${SPRING_ACTIVE_PROFILES}
   thymeleaf:
     cache: false
     check-template-location: true
@@ -12,53 +16,108 @@ spring:
       database: algo
 server:
   port: 8082
-
 logging:
   level:
-    com.algo: INFO
+    com.algo: ${LOGGING_LEVEL_COM_ALGO:INFO}
     org.mongodb: OFF
     com.mongodb: OFF
+    org.springframework: INFO
+  structured:
+    format:
+      console: ecs
 
 trade:
   rr-ratio: 1
 
 app:
+  login:
+    config:
+      redirect-url: ${REDIR_URL:unknown}
+      broker-host: ${BROKER_HOST:unknown}
+      market-start-time: "09:15:00"
+      market-end-time: "15:30:00"
+      login-refresh-time: "06:00:00"
   config:
+    ws:
+      connect-url: ${WS_CONNECT_URL:unknown}
+      header-connect-key: ${WS_HEADER_CONNECT_KEY:unknown}
+      header-connect-value: ${WS_HEADER_CONNECT_VALUE:unknown}
+      header-user-key: ${WS_HEADER_USER_KEY:unknown}
+      header-user-value: ${WS_HEADER_USER_VALUE:unknown}
+    trade:
+      lot-multiplier: ${LOT_MULTIPLIER:1}
+      candle-data-durations:
+        - 1m
+        - 3m
+        - 5m
+        - 15m
+        - 75m
+      moving-averages:
+        - 5
+        - 10
+        - 20
+        - 50
+        - 100
+        - 200
+      ema-smoothing: 2
+      buy-timeframe: 15m
+      sell-timeframe: 5m
+      stoploss-points: 15
+      risk-reward-ratio: 2
+      quantity: 450
+      half-quantity: 225
+      test-quantity: 150
     scrips:
       - name: NIFTY
         trading-symbol: NSE_INDEX|Nifty 50
-        lot-size: 25
+        lot-size: 75
         strike-diff: 50
         expiry-day: THURSDAY
-        exchanges:
-          - NSE
-          - NFO
-
-      - name: BANKNIFTY
-        trading-symbol: NSE_INDEX|Nifty Bank
-        lot-size: 15
-        strike-diff: 100
-        expiry-day: WEDNESDAY
-        exchanges:
-          - NSE
-          - NFO
-
-      - name: FINNIFTY
-        trading-symbol: NSE_INDEX|Nifty Bank
-        lot-size: 25
-        strike-diff: 50
-        expiry-day: TUESDAY
+        no-trade-after: "14:55:00"
+        premium-selection:
+          FRIDAY:
+            - from: "09:15:00"
+              to: "15:30:00"
+              min-premium: 100
+              max-premium: 120
+          MONDAY:
+            - from: "09:15:00"
+              to: "15:30:00"
+              min-premium: 80
+              max-premium: 95
+          TUESDAY:
+            - from: "09:15:00"
+              to: "15:30:00"
+              min-premium: 61
+              max-premium: 72
+          WEDNESDAY:
+            - from: "09:15:00"
+              to: "12:29:59"
+              min-premium: 45
+              max-premium: 59
+            - from: "12:30:00"
+              to: "15:30:00"
+              min-premium: 35
+              max-premium: 45
+          THURSDAY:
+            - from: "09:15:00"
+              to: "11:59:59"
+              min-premium: 30
+              max-premium: 41
+            - from: "12:00:00"
+              to: "15:30:00"
+              min-premium: 12
+              max-premium: 22
         exchanges:
           - NSE
           - NFO
 
     platform:
-      asset-url: https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz
-      holiday-list-url: https://api.upstox.com/v2/market/holidays
-      asset-download-path: 'D:\\Assets\\'
+      asset-url: ${ASSET_URL:unknown}
+      holiday-list-url: ${HOLIDAY_LIST_URL:unknown}
+      asset-download-path: ${ASSET_FILE_LOCATION:unknown}
       asset-name-date-format: 'yyyyMMMdd'
       asset-download-name-prefix: 'NSE_Contracts_'
       asset-download-name-suffix: '.json'
       trading-symbol-pattern: '<instrumentName> <strike> <instrumentType> <expiryDate>'
       trading-symbol-date-format: 'dd MMM yy'
-      trade-execution-direction: BOTH

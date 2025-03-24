@@ -1,73 +1,60 @@
 package com.algo.upstox.api.websocket;
 
-import com.algo.upstox.api.events.FeedResponseEventPublisher;
-import com.algo.upstox.config.AppPropertyConfig;
-import com.algo.upstox.config.AppPropertyConfig.Scrip;
-import com.algo.upstox.model.platform.IndexEnum;
-import com.algo.upstox.service.BreakoutTradeService;
-import com.algo.upstox.service.OrderService;
-import com.algo.upstox.service.UserSubscriptionService;
-import com.algo.upstox.service.impl.ApiFactory;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.upstox.ApiException;
-import io.swagger.client.api.WebsocketApi;
+import com.algo.upstox.common.model.platform.IndexEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.java_websocket.client.WebSocketClient;
 import org.springframework.stereotype.Component;
 
-import java.net.URI;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import static com.algo.upstox.api.websocket.SessionDataStore.deRegisterApiClient;
+import static com.algo.upstox.api.websocket.SessionDataStore.deRegisterMarketDataFeedV3Client;
+import static com.algo.upstox.api.websocket.SessionDataStore.deRegisterPositionFeedClient;
+import static com.algo.upstox.api.websocket.SessionDataStore.registerMarketDataFeedV3Client;
+import static com.algo.upstox.api.websocket.SessionDataStore.registerPositionFeedClient;
+import static com.algo.upstox.api.websocket.SessionDataStore.runTaskOnMarketDataFeedV3Client;
 
-import static com.algo.upstox.constants.AppConstants.API_VERSION;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class WebsocketService {
-    private final ApiFactory apiFactory;
-    private final UserSubscriptionService subscriptionService;
-    private final ObjectMapper objectMapper;
-    private final FeedResponseEventPublisher feedResponseEventPublisher;
-    private final OrderService orderService;
-    private final Map<IndexEnum, Scrip> scrips;
-    private final BreakoutTradeService breakoutTradeService;
-    private final AppPropertyConfig appPropertyConfig;
-    private final WebsocketMessageEmitter websocketMessageEmitter;
 
-    private static final Map<String, AppWebSocketClient> connectedClients = new HashMap<>();
+    public void initiateAllWebsockets(String sessionId) {
+       registerMarketDataFeedV3Client(sessionId);
+       registerPositionFeedClient(sessionId);
+    }
 
-    public void initiateWebsocket(String sessionId) {
-        var websocketApi = apiFactory.getApi(sessionId, WebsocketApi.class);
-        try {
-            var response = websocketApi.getMarketDataFeedAuthorize(API_VERSION);
-            var uri = response.getData().getAuthorizedRedirectUri();
-            log.info("Portfolio URI - {}", uri);
-            var client = createWebSocketClient(uri, sessionId);
-           // client.getPlannedTrades();
-            connectedClients.put(sessionId, client);
-            client.connect();
-        } catch (ApiException e) {
-            log.error(e.getMessage(), e);
-        }
+    public void loadConditionalTrades(String sessionId) {
+        runTaskOnMarketDataFeedV3Client(sessionId, MarketDataFeedV3Client::loadConditionalTrade);
+    }
+
+    public void deactivateConditionalTrade(String sessionId) {
+        runTaskOnMarketDataFeedV3Client(sessionId, MarketDataFeedV3Client::deactivateConditionalTrade);
+    }
+
+    public void updateExecutingTrades(String sessionId, String tradeId) {
+        runTaskOnMarketDataFeedV3Client(sessionId, app -> app.updateConditionalTrade(tradeId));
+    }
+
+    public void loadStraddleTotalPremiums(String sessionId, IndexEnum index) {
+        runTaskOnMarketDataFeedV3Client(sessionId, app -> app.fetchStraddleTotalPremium(index));
+    }
+
+    public void deleteStraddleTotalPremiums(String sessionId, IndexEnum index) {
+        runTaskOnMarketDataFeedV3Client(sessionId, app -> app.deleteStraddleTotalPremium(index));
+    }
+
+    public void closeRunningTrades(String sessionId) {
+        runTaskOnMarketDataFeedV3Client(sessionId, MarketDataFeedV3Client::forceCloseTrades);
     }
 
     public void disconnectWebsocket(String sessionId) {
-        Optional.ofNullable(connectedClients.remove(sessionId))
-                .ifPresent(WebSocketClient::close);
+        deRegisterApiClient(sessionId);
+        deRegisterPositionFeedClient(sessionId);
+        deRegisterMarketDataFeedV3Client(sessionId);
     }
 
-    public void fetchPlannedTradeData(String sessionId) {
-        Optional.ofNullable(connectedClients.get(sessionId))
-                .ifPresent(AppWebSocketClient::fetchAndSetPlannedTrades);
-    }
-
-    private AppWebSocketClient createWebSocketClient(String uri, String sessionId) {
-        return new AppWebSocketClient(URI.create(uri), subscriptionService, objectMapper,
-                feedResponseEventPublisher, orderService,
-                sessionId, scrips, breakoutTradeService, websocketMessageEmitter, appPropertyConfig);
+    public void refreshSubscription(String sessionId) {
+        runTaskOnMarketDataFeedV3Client(sessionId, MarketDataFeedV3Client::refreshSubscription);
     }
 
 }
