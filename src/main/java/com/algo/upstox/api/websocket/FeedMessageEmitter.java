@@ -2,6 +2,8 @@ package com.algo.upstox.api.websocket;
 
 import com.algo.upstox.common.model.ws.FeedData;
 import com.algo.upstox.common.model.ws.LTPC;
+import com.algo.upstox.model.ws.FeedData;
+import com.algo.upstox.model.ws.LTPC;
 import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed;
 import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed.FeedResponse;
 import com.upstox.marketdatafeeder.rpc.proto.MarketDataFeed.MarketFullFeed;
@@ -13,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.algo.upstox.common.constants.AppConstants.fromTms;
+import static com.algo.upstox.constants.AppConstants.fromTms;
 
 @Component
 @Slf4j

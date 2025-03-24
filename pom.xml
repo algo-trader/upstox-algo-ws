@@ -11,7 +11,7 @@
     <artifactId>upstox-algo-ws</artifactId>
     <version>2.0.0</version>
     <name>upstox-algo-api</name>
-    <description>upstox-algo-api</description>
+    <description>Websocket Application for real-time update</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
