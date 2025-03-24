@@ -5,24 +5,26 @@
     <parent>
         <groupId>com.tradebook</groupId>
         <artifactId>local-algo-app-bom</artifactId>
-        <version>1.0.0</version>
+        <version>1.0.2</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <artifactId>upstox-algo-ws</artifactId>
-    <version>2.0.0</version>
+    <version>3.0.0</version>
     <name>upstox-algo-api</name>
     <description>Websocket Application for real-time update</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
+        <artifactory-url>https://artifactory.algomoneyap.tech</artifactory-url>
+        <common-lib-version>2.0.1-SNAPSHOT</common-lib-version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>com.algo</groupId>
             <artifactId>upstox-common-lib</artifactId>
-            <version>2.0.0</version>
+            <version>${common-lib-version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -43,18 +45,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.avro</groupId>
-            <artifactId>avro</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.kafka</groupId>
-            <artifactId>spring-kafka</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.confluent</groupId>
-            <artifactId>kafka-avro-serializer</artifactId>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -92,11 +82,6 @@
             <artifactId>okio</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-layout-template-json</artifactId>
-            <version>2.23.1</version>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
@@ -112,11 +97,17 @@
         </plugins>
     </build>
 
-    <repositories>
+    <distributionManagement>
+        <snapshotRepository>
+            <id>algo-snapshots</id>
+            <name>Artifactory Snapshots</name>
+            <url>${artifactory-url}/artifactory/app-lib-snapshot</url>
+        </snapshotRepository>
         <repository>
-            <id>confluent</id>
-            <url>https://packages.confluent.io/maven/</url>
+            <id>algo</id>
+            <name>Artifactory Releases</name>
+            <url>${artifactory-url}/artifactory/app-lib-release</url>
         </repository>
-    </repositories>
+    </distributionManagement>
 
 </project>

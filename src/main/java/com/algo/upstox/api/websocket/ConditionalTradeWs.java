@@ -183,7 +183,7 @@ public class ConditionalTradeWs {
                     var orderResponse = orderService.placeMarketOrder(et.getInstrument().getTradingSymbol(),
                             lots, reverseOf(et.getTransactionType()),
                             sessionId, Optional.ofNullable(et.getProductType())
-                                    .map(pt -> ProductEnum.valueOf(pt.name()))
+                                    .map(ProductEnum::valueOf)
                                     .orElse(ProductEnum.D));
 
                     Optional.ofNullable(orderResponse)

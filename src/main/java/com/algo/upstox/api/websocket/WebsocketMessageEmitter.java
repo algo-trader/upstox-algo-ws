@@ -2,12 +2,16 @@ package com.algo.upstox.api.websocket;
 
 import com.algo.upstox.api.model.AlertDto;
 import com.algo.upstox.api.model.EmittedMessages;
+import com.algo.upstox.api.model.HoldingDataMessage;
 import com.algo.upstox.api.model.LtpcFeed;
 import com.algo.upstox.api.model.LtpcFeedMessage;
 import com.algo.upstox.api.model.MessageCategoryEnum;
+import com.algo.upstox.api.model.PositionDataMessage;
 import com.algo.upstox.api.model.StraddleMessage;
 import com.algo.upstox.common.model.documents.BreakoutTradeDto;
 import com.algo.upstox.common.model.documents.SubscriptionDataDto;
+import com.algo.upstox.common.model.documents.UserHoldingDto;
+import com.algo.upstox.common.model.documents.UserPositionDataDto;
 import com.algo.upstox.common.model.documents.UserSubscriptionDto;
 import com.algo.upstox.common.model.ws.BidAsk;
 import com.algo.upstox.common.model.ws.FeedData;
@@ -49,6 +53,13 @@ public class WebsocketMessageEmitter {
     public static final String DESTINATION_STRADDLE_LTP = "/topic/messages/straddle/ltp/";
     public static final String DESTINATION_STRADDLE_ALERT = "/topic/messages/straddle/alert/";
     public static final String DESTINATION_SUBSCRIBE_NOTIFY = "/topic/messages/subscribe/";
+    public static final String DESTINATION_EVENT_PUBLISHED = "/topic/messages/event/";
+    public static final String DESTINATION_ALERT_TRIGGERED = "/topic/messages/alert-triggered/";
+    public static final String DESTINATION_HOLDING_FETCHED = "/topic/messages/holding-fetched/";
+    public static final String DESTINATION_HOLDING_SUM = "/topic/messages/holding-sum/";
+    public static final String DESTINATION_POSITION_FETCHED = "/topic/messages/position-fetched/";
+    public static final String DESTINATION_POSITION_UPDATE = "/topic/messages/position-update/";
+    public static final String DESTINATION_OI_DATA = "/topic/messages/oi-data/";
 
     private static final Map<String, LtpcFeedMessage> ltpMap = new HashMap<>();
 
@@ -60,7 +71,7 @@ public class WebsocketMessageEmitter {
     }
 
     public void emitSubscriptionNotify(String sessionId) {
-        log.info("Notifying user for subscription");
+        log.debug("Notifying user for subscription");
         emitMessage("", DESTINATION_SUBSCRIBE_NOTIFY, MessageCategoryEnum.SUBSCRIBE, sessionId);
     }
 
@@ -129,6 +140,34 @@ public class WebsocketMessageEmitter {
 
     public void emitAlertMessage(AlertDto alert, String sessionId) {
         emitMessage(alert, DESTINATION_STRADDLE_ALERT, MessageCategoryEnum.STRADDLE, sessionId);
+    }
+
+    public void emitHoldingFetchedMessage(UserHoldingDto holding, String sessionId) {
+        emitMessage(holding, DESTINATION_HOLDING_FETCHED, MessageCategoryEnum.HOLDING_FETCHED, sessionId);
+    }
+
+    public void emitPositionFetchedMessage(UserPositionDataDto position, String sessionId) {
+        emitMessage(position, DESTINATION_POSITION_FETCHED, MessageCategoryEnum.POSITION_FETCHED, sessionId);
+    }
+
+    public void emitPositionUpdateMessage(PositionDataMessage position, String sessionId) {
+        emitMessage(position, DESTINATION_POSITION_UPDATE, MessageCategoryEnum.POSITION_UPDATE, sessionId);
+    }
+
+    public void emitHoldingSumMessage(HoldingDataMessage holding, String sessionId) {
+        emitMessage(holding, DESTINATION_HOLDING_SUM, MessageCategoryEnum.HOLDING_SUM_STREAM, sessionId);
+    }
+
+    public void emitEventPublished(Object event, String sessionId) {
+        emitMessage(event, DESTINATION_EVENT_PUBLISHED, MessageCategoryEnum.EVENT, sessionId);
+    }
+
+    public void emitAlertTriggered(String sessionId) {
+        emitMessage(null, DESTINATION_ALERT_TRIGGERED, MessageCategoryEnum.ALERT_TRIGGERED, sessionId);
+    }
+
+    public void emitOIData(String sessionId, Object oiData) {
+        emitMessage(oiData, DESTINATION_OI_DATA, MessageCategoryEnum.OPEN_INTEREST, sessionId);
     }
 
     private static LTPC buildLtpc(MarketFullFeed marketFullFeed) {

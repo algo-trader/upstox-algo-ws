@@ -1,0 +1,106 @@
+version: 0.2
+
+env:
+  secrets-manager:
+    ARTIFACTORY_USER: "JFrogSecret:username"
+    ARTIFACTORY_PASSWORD: "JFrogSecret:password"
+  variables:
+    ARTIFACTORY_URL: "https://artifactory.algomoneyap.tech/artifactory"
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto21
+    commands:
+      - echo "Setting up Maven and Artifactory credentials..."
+      - mkdir -p ~/.m2
+      - |
+        echo "<settings xmlns=\"http://maven.apache.org/SETTINGS/1.0.0\">
+        <servers>
+          <server>
+            <id>algo</id>
+            <username>${ARTIFACTORY_USER}</username>
+            <password>${ARTIFACTORY_PASSWORD}</password>
+          </server>
+          <server>
+            <id>algo-snapshots</id>
+            <username>${ARTIFACTORY_USER}</username>
+            <password>${ARTIFACTORY_PASSWORD}</password>
+          </server>
+        </servers>
+        <profiles>
+          <profile>
+          <id>artifactory</id>
+          <repositories>
+            <repository>
+              <snapshots>
+                <enabled>false</enabled>
+              </snapshots>
+              <id>algo</id>
+              <name>artifactory</name>
+              <url>https://artifactory.algomoneyap.tech/artifactory/app-lib-release</url>
+            </repository>
+            <repository>
+              <snapshots>
+                <enabled>true</enabled>
+              </snapshots>
+              <id>algo-snapshots</id>
+              <name>app-lib-snapshot</name>
+              <url>https://artifactory.algomoneyap.tech/artifactory/app-lib-snapshot</url>
+            </repository>
+            <repository>
+              <id>central</id>
+              <url>https://repo1.maven.org/maven2</url>
+              <snapshots>
+                <enabled>false</enabled>
+              </snapshots>
+            </repository>
+            <repository>
+                <id>confluent</id>
+                <url>https://packages.confluent.io/maven/</url>
+            </repository>
+          </repositories>
+          <pluginRepositories>
+            <pluginRepository>
+              <snapshots>
+                <enabled>false</enabled>
+              </snapshots>
+              <id>algo</id>
+              <name>app-lib-release</name>
+              <url>https://artifactory.algomoneyap.tech/artifactory/app-lib-release</url>
+            </pluginRepository>
+            <pluginRepository>
+              <snapshots>
+                <enabled>false</enabled>
+              </snapshots>
+              <id>algo-snapshots</id>
+              <name>app-lib-snapshot</name>
+              <url>https://artifactory.algomoneyap.tech/artifactory/app-lib-snapshot</url>
+            </pluginRepository>
+            <pluginRepository>
+              <id>central</id>
+              <url>https://repo1.maven.org/maven2</url>
+              <snapshots>
+                <enabled>false</enabled>
+              </snapshots>
+            </pluginRepository>
+            <pluginRepository>
+                <id>confluent</id>
+                <url>https://packages.confluent.io/maven/</url>
+            </pluginRepository>
+          </pluginRepositories>
+        </profile>
+        </profiles>
+        <activeProfiles>
+          <activeProfile>artifactory</activeProfile>
+        </activeProfiles>
+        </settings>" > ~/.m2/settings.xml
+
+  build:
+    commands:
+      - echo "Running Maven build - $ARTIFACTORY_USER $ARTIFACTORY_URL"
+      - mvn clean deploy -DskipTests=true
+
+  post_build:
+    commands:
+      - echo "Uploaded artifact to Artifactory"
