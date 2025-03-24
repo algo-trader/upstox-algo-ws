@@ -2,7 +2,7 @@ spring:
   application:
     name: upstox-algo-ws
   config:
-    import: file:${FILE_LOCATION}
+    import: file:${FILE_LOCATION:/}
   profiles:
     active: ${SPRING_ACTIVE_PROFILES}
   thymeleaf:
@@ -11,20 +11,17 @@ spring:
     mode: HTML
   data:
     mongodb:
-      host: localhost
-      port: 27017
-      database: algo
+      uri: ${DB_CONN_STRING}
+      database: ${DB_SCHEMA_NAME}
+      username: ${DB_USER_ARN}
 server:
-  port: 8082
+  port: 8080
 logging:
   level:
     com.algo: ${LOGGING_LEVEL_COM_ALGO:INFO}
     org.mongodb: OFF
     com.mongodb: OFF
     org.springframework: INFO
-  structured:
-    format:
-      console: ecs
 
 trade:
   rr-ratio: 1
@@ -37,6 +34,11 @@ app:
       market-start-time: "09:15:00"
       market-end-time: "15:30:00"
       login-refresh-time: "06:00:00"
+      sandbox:
+        api-key: ${APP_SANDBOX_API_KEY:NOT_SET}
+        sandbox-access-token: ${APP_SANDBOX_ACCESS_TOKEN:NOT_SET}
+        api-secret: ${APP_SANDBOX_SECRET:NOT_SET}
+        base-host: ${APP_SANDBOX_HOST:NOT_SET}
   config:
     ws:
       connect-url: ${WS_CONNECT_URL:unknown}
