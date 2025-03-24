@@ -57,4 +57,8 @@ public class WebsocketService {
         runTaskOnMarketDataFeedV3Client(sessionId, MarketDataFeedV3Client::refreshSubscription);
     }
 
+    public void fetchPositions(String sessionId) {
+        runTaskOnMarketDataFeedV3Client(sessionId, MarketDataFeedV3Client::fetchPositions);
+    }
+
 }

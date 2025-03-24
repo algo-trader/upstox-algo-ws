@@ -15,12 +15,7 @@ public class WebSocketLoggedInUserService {
     private final AuthService authService;
 
     public void updateSessionDetails(String sessionId, String simpSessionId) {
-        Optional.ofNullable(authService.getLoggedInUser(sessionId))
-                .ifPresent(u -> {
-                    log.info("Saving simp sessionId to user {}", u.getUserName());
-                    u.setSimpSessionId(simpSessionId);
-                    authService.saveUserSessionDetails(u);
-                });
+        authService.updateSimpSession(sessionId, simpSessionId);
     }
 
     public Optional<String> retrieveSessionIdBySimpSessionId(String simpSessionId) {

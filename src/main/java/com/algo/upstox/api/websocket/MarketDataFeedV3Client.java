@@ -11,9 +11,13 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.stream.Collectors;
 
+import static com.algo.upstox.api.websocket.SessionDataStore.deRegisterMarketDataFeedV3Client;
 import static com.algo.upstox.api.websocket.SessionDataStore.getApiClient;
+import static com.algo.upstox.api.websocket.SessionDataStore.getMarketDataFeedV3Client;
 import static com.algo.upstox.common.config.ApplicationContextProvider.getBean;
 import static com.upstox.feeder.constants.Mode.FULL;
+import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
 
 @Slf4j
 public class MarketDataFeedV3Client {
@@ -26,18 +30,27 @@ public class MarketDataFeedV3Client {
     private ConditionalTradeWs conditionalTradeWs;
     @Getter
     private  StraddleWs straddleWs;
+    @Getter
+    private PortfolioWs portfolioWs;
+
     private UserSubscriptionDto subscriptions;
 
     private final MarketDataStreamerV3 streamer;
 
     public static MarketDataFeedV3Client createMarketDataFeedV3Client(String sessionId) {
-        return new MarketDataFeedV3Client(sessionId);
+        var existing = getMarketDataFeedV3Client(sessionId);
+        if (isNull(existing)) {
+            return new MarketDataFeedV3Client(sessionId);
+        }
+        return existing;
     }
 
     private MarketDataFeedV3Client(String sessionId) {
+        log.info(":::: Creating NEW Market Data Feed V3 Client ::::");
         this.sessionId = sessionId;
         setConditionalTradeWs();
         setStraddleWs();
+        setPortfolioWs();
 
         this.websocketMessageEmitter = getBean(WebsocketMessageEmitter.class);
         this.subscriptionService = getBean(UserSubscriptionService.class);
@@ -48,8 +61,11 @@ public class MarketDataFeedV3Client {
 
     private MarketDataStreamerV3 initiateClient() {
         var marketDataStreamer = new MarketDataStreamerV3(getApiClient(sessionId),
-                subscriptionService.retrieveUserSubscriptions(sessionId).getSubscriptionList().stream()
-                        .map(SubscriptionDataDto::getInstrumentToken).collect(Collectors.toSet()), FULL);
+                subscriptionService.retrieveUserSubscriptions(sessionId)
+                        .getSubscriptionList()
+                        .stream()
+                        .map(SubscriptionDataDto::getInstrumentToken)
+                        .collect(Collectors.toSet()), FULL);
 
         marketDataStreamer.setOnMarketUpdateListener(this::onMessage);
         marketDataStreamer.setOnOpenListener(this::onOpen);
@@ -72,25 +88,37 @@ public class MarketDataFeedV3Client {
         }
     }
 
+    private void setPortfolioWs() {
+        if (portfolioWs == null) {
+            portfolioWs = new PortfolioWs(sessionId);
+        }
+    }
+
     public void onOpen() {
-        log.info("Websocket opened for MarketDataFeedV3Client");
+        log.info(":::: Websocket opened for MarketDataFeedV3Client ::::");
         sendSubscriptionRequest();
         conditionalTradeWs.fetchRunningTradesOnConnect();
         straddleWs.fetchStraddle(IndexEnum.NIFTY);
+        portfolioWs.fetchPortfolio(streamer);
     }
 
     public void onMessage(MarketUpdateV3 marketData) {
         websocketMessageEmitter.emitLtpc(subscriptions, marketData, sessionId);
         conditionalTradeWs.runConditionalTrade(marketData);
         straddleWs.runStraddleTotalPremium(marketData);
+        portfolioWs.streamPortfolio(marketData);
     }
 
     public void onClose(int i, String s) {
-        log.info("Closed websocket - {}, {}", i, s);
+        log.info(":::: Closed MarketDataV3Websocket :::: {}, {}", i, s);
+        deRegisterMarketDataFeedV3Client(sessionId);
+        disconnect();
     }
 
     public void onError(Throwable e) {
-        log.error(e.getMessage(), e);
+        log.error("::: MarketDataV3Websocket Error ::: {}", e.getMessage(), e);
+        deRegisterMarketDataFeedV3Client(sessionId);
+        disconnect();
     }
 
     private void sendSubscriptionRequest() {
@@ -140,6 +168,15 @@ public class MarketDataFeedV3Client {
     }
 
     public void disconnect() {
-        streamer.disconnect();
+        if (nonNull(streamer)) {
+            streamer.disconnect();
+        }
+    }
+
+    public void fetchPositions() {
+        portfolioWs.fetchPositions(streamer);
+    }
+    public void fetchHoldings() {
+        portfolioWs.fetchHoldings(streamer);
     }
 }
