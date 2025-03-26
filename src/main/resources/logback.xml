@@ -1,16 +1,26 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <Configuration>
-    <appender name="jsonEncoder" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder class="ch.qos.logback.classic.encoder.JsonEncoder"/>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <layout class="ch.qos.logback.classic.PatternLayout">
+            <Pattern>
+                %d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n
+            </Pattern>
+        </layout>
+    </appender>
+    <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="CONSOLE" />
     </appender>
 
-    <root level="INFO">
-        <appender-ref ref="jsonEncoder" />
+    <root level="error">
+        <appender-ref ref="ASYNC"/>
     </root>
-    <root level="DEBUG">
-        <appender-ref ref="jsonEncoder" />
+    <root level="debug">
+        <appender-ref ref="ASYNC"/>
     </root>
-    <root level="ERROR">
-        <appender-ref ref="jsonEncoder" />
+    <root level="info">
+        <appender-ref ref="ASYNC"/>
+    </root>
+    <root level="warn">
+        <appender-ref ref="ASYNC"/>
     </root>
 </Configuration>

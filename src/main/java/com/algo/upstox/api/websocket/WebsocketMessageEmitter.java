@@ -49,6 +49,8 @@ public class WebsocketMessageEmitter {
     public static final String DESTINATION_STRADDLE_LTP = "/topic/messages/straddle/ltp/";
     public static final String DESTINATION_STRADDLE_ALERT = "/topic/messages/straddle/alert/";
     public static final String DESTINATION_SUBSCRIBE_NOTIFY = "/topic/messages/subscribe/";
+    public static final String DESTINATION_EVENT_PUBLISHED = "/topic/messages/event/";
+    public static final String DESTINATION_ALERT_TRIGGERED = "/topic/messages/alert-triggered/";
 
     private static final Map<String, LtpcFeedMessage> ltpMap = new HashMap<>();
 
@@ -129,6 +131,14 @@ public class WebsocketMessageEmitter {
 
     public void emitAlertMessage(AlertDto alert, String sessionId) {
         emitMessage(alert, DESTINATION_STRADDLE_ALERT, MessageCategoryEnum.STRADDLE, sessionId);
+    }
+
+    public void emitEventPublished(Object event, String sessionId) {
+        emitMessage(event, DESTINATION_EVENT_PUBLISHED, MessageCategoryEnum.EVENT, sessionId);
+    }
+
+    public void emitAlertTriggered(String sessionId) {
+        emitMessage(null, DESTINATION_ALERT_TRIGGERED, MessageCategoryEnum.ALERT_TRIGGERED, sessionId);
     }
 
     private static LTPC buildLtpc(MarketFullFeed marketFullFeed) {
