@@ -31,6 +31,9 @@ public class SessionDataStore {
 
         if (!registeredMarketDataClients.containsKey(sessionId)) {
             registeredMarketDataClients.put(sessionId, createMarketDataFeedV3Client(sessionId));
+        } else {
+            registeredMarketDataClients.get(sessionId).disconnect();
+            registeredMarketDataClients.put(sessionId, createMarketDataFeedV3Client(sessionId));
         }
     }
 

@@ -26,11 +26,15 @@ public class MarketDataFeedV3Client {
     private ConditionalTradeWs conditionalTradeWs;
     @Getter
     private  StraddleWs straddleWs;
+    @Getter
+    private PortfolioWs portfolioWs;
+
     private UserSubscriptionDto subscriptions;
 
     private final MarketDataStreamerV3 streamer;
 
     public static MarketDataFeedV3Client createMarketDataFeedV3Client(String sessionId) {
+        log.info(":::: Creating NEW Market Data Feed V3 Client");
         return new MarketDataFeedV3Client(sessionId);
     }
 
@@ -38,6 +42,7 @@ public class MarketDataFeedV3Client {
         this.sessionId = sessionId;
         setConditionalTradeWs();
         setStraddleWs();
+        setPortfolioWs();
 
         this.websocketMessageEmitter = getBean(WebsocketMessageEmitter.class);
         this.subscriptionService = getBean(UserSubscriptionService.class);
@@ -48,8 +53,11 @@ public class MarketDataFeedV3Client {
 
     private MarketDataStreamerV3 initiateClient() {
         var marketDataStreamer = new MarketDataStreamerV3(getApiClient(sessionId),
-                subscriptionService.retrieveUserSubscriptions(sessionId).getSubscriptionList().stream()
-                        .map(SubscriptionDataDto::getInstrumentToken).collect(Collectors.toSet()), FULL);
+                subscriptionService.retrieveUserSubscriptions(sessionId)
+                        .getSubscriptionList()
+                        .stream()
+                        .map(SubscriptionDataDto::getInstrumentToken)
+                        .collect(Collectors.toSet()), FULL);
 
         marketDataStreamer.setOnMarketUpdateListener(this::onMessage);
         marketDataStreamer.setOnOpenListener(this::onOpen);
@@ -72,25 +80,33 @@ public class MarketDataFeedV3Client {
         }
     }
 
+    private void setPortfolioWs() {
+        if (portfolioWs == null) {
+            portfolioWs = new PortfolioWs(sessionId);
+        }
+    }
+
     public void onOpen() {
-        log.info("Websocket opened for MarketDataFeedV3Client");
+        log.info(":::: Websocket opened for MarketDataFeedV3Client ::::");
         sendSubscriptionRequest();
         conditionalTradeWs.fetchRunningTradesOnConnect();
         straddleWs.fetchStraddle(IndexEnum.NIFTY);
+        portfolioWs.fetchPortfolio(streamer);
     }
 
     public void onMessage(MarketUpdateV3 marketData) {
         websocketMessageEmitter.emitLtpc(subscriptions, marketData, sessionId);
         conditionalTradeWs.runConditionalTrade(marketData);
         straddleWs.runStraddleTotalPremium(marketData);
+        portfolioWs.streamPortfolio(marketData);
     }
 
     public void onClose(int i, String s) {
-        log.info("Closed websocket - {}, {}", i, s);
+        log.info(":::: Closed MarketDataV3Websocket :::: {}, {}", i, s);
     }
 
     public void onError(Throwable e) {
-        log.error(e.getMessage(), e);
+        log.error("::: MarketDataV3Websocket Error ::: {}", e.getMessage(), e);
     }
 
     private void sendSubscriptionRequest() {
@@ -141,5 +157,9 @@ public class MarketDataFeedV3Client {
 
     public void disconnect() {
         streamer.disconnect();
+    }
+
+    public void fetchPositions() {
+        portfolioWs.fetchPositions(streamer);
     }
 }

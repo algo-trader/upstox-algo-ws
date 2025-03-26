@@ -134,7 +134,7 @@ public class StraddleWs {
         });
     }
 
-    private double getLtp(MarketUpdateV3 marketData, String instrumentKey) {
+    static double getLtp(MarketUpdateV3 marketData, String instrumentKey) {
         return Optional.ofNullable(marketData)
                 .map(MarketUpdateV3::getFeeds)
                 .map(map -> map.get(instrumentKey))

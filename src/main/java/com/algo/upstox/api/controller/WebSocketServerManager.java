@@ -10,6 +10,7 @@ import com.algo.upstox.common.model.AlertTypeEnum;
 import com.algo.upstox.common.model.WSMessageDto;
 import com.algo.upstox.common.model.platform.IndexEnum;
 import com.algo.upstox.common.service.AuthService;
+import com.algo.upstox.common.service.EventService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -25,6 +26,7 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.web.socket.messaging.SessionSubscribeEvent;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -48,6 +50,7 @@ public class WebSocketServerManager {
     private final AuthService authService;
     private final WebsocketAppConfig websocketAppConfig;
     private final WebsocketMessageEmitter messageEmitter;
+    private final EventService eventService;
 
     @MessageMapping("/user/tradeData")
     public void notificationFromUser(@Header(SESSION_ID_KEY) String sessionId, GenericMessage message) {
@@ -56,7 +59,6 @@ public class WebSocketServerManager {
 
     @MessageMapping("/user/api/activity")
     public void notificationFromApi(GenericMessage<WSMessageDto> message) {
-        log.info("User pinged for trade data {} - {}", message.getHeaders(), message.getPayload().getActivity());
         var activity = message.getPayload().getActivity();
 
         switch (activity) {
@@ -75,7 +77,7 @@ public class WebSocketServerManager {
             }
             case STRADDLE_CREATE -> {
                 var index = getNativeHeaderValue(message.getHeaders(), INDEX);
-                log.info("User pinged for straddle create {}", index);
+                log.info("Notification received :::: Straddle create {}", index);
                 var sessionId = message.getPayload().getSessionId();
                 websocketService.loadStraddleTotalPremiums(sessionId, IndexEnum.valueOf(index));
                 messageEmitter.emitAlertMessage(AlertDto.builder()
@@ -88,7 +90,7 @@ public class WebSocketServerManager {
             }
             case STRADDLE_UPDATE -> {
                 var index = getNativeHeaderValue(message.getHeaders(), INDEX);
-                log.info("User pinged for straddle update {}", index);
+                log.info("Notification received :::: Straddle update {}", index);
                 var sessionId = message.getPayload().getSessionId();
                 websocketService.loadStraddleTotalPremiums(sessionId, IndexEnum.valueOf(index));
                 messageEmitter.emitAlertMessage(AlertDto.builder()
@@ -100,7 +102,7 @@ public class WebSocketServerManager {
             }
             case STRADDLE_DELETE -> {
                 var index = getNativeHeaderValue(message.getHeaders(), INDEX);
-                log.info("User pinged for straddle delete {}", index);
+                log.info("Notification received :::: Straddle delete {}", index);
                 var sessionId = message.getPayload().getSessionId();
                 websocketService.deleteStraddleTotalPremiums(sessionId, IndexEnum.valueOf(index));
                 messageEmitter.emitAlertMessage(AlertDto.builder()
@@ -111,8 +113,23 @@ public class WebSocketServerManager {
                         .build(), sessionId);
             }
             case SUBSCRIBE -> {
-                log.info("User has updated subscription");
+                log.info("Notification received :::: Updated subscription");
                 websocketService.refreshSubscription(message.getPayload().getSessionId());
+            }
+            case EVENT_PUBLISH -> {
+                log.info("Notification received :::: New event published");
+                var data = (LinkedHashMap)message.getPayload().getBody();
+                var allEvents = eventService.getEvents(authService.getLoggedInUser(message.getPayload().getSessionId()).getEmail());
+                messageEmitter.emitEventPublished(allEvents, message.getPayload().getSessionId());
+
+            }
+            case ALERT_TRIGGERED -> {
+                log.info("Notification received :::: New event published");
+                messageEmitter.emitAlertTriggered(message.getPayload().getSessionId());
+            }
+            case POSITION_FETCHED -> {
+                log.info("Notification received :::: User has new position");
+                websocketService.fetchPositions(message.getPayload().getSessionId());
             }
         }
     }
@@ -140,7 +157,7 @@ public class WebSocketServerManager {
     }
 
     @EventListener
-    public void handleSessionConnected(SessionDisconnectEvent event) {
+    public void handleSessionDisconnected(SessionDisconnectEvent event) {
         log.info("Client is being disconnected. {}", event.getSource());
         var simpSession = extractSimpSession(event.getMessage());
 
