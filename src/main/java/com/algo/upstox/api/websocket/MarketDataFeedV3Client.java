@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import static com.algo.upstox.api.websocket.SessionDataStore.getApiClient;
 import static com.algo.upstox.common.config.ApplicationContextProvider.getBean;
 import static com.upstox.feeder.constants.Mode.FULL;
+import static java.util.Objects.nonNull;
 
 @Slf4j
 public class MarketDataFeedV3Client {
@@ -156,7 +157,9 @@ public class MarketDataFeedV3Client {
     }
 
     public void disconnect() {
-        streamer.disconnect();
+        if (nonNull(streamer)) {
+            streamer.disconnect();
+        }
     }
 
     public void fetchPositions() {
