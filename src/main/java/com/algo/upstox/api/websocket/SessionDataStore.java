@@ -11,6 +11,7 @@ import java.util.function.Consumer;
 import static com.algo.upstox.api.websocket.MarketDataFeedV3Client.createMarketDataFeedV3Client;
 import static com.algo.upstox.api.websocket.PositionFeedClient.createPositionFeedClient;
 import static com.algo.upstox.common.config.ApplicationContextProvider.getBean;
+import static java.util.Objects.nonNull;
 
 public class SessionDataStore {
     private static final Map<String, ApiClient> registeredApiClients = new HashMap<>();
@@ -25,6 +26,10 @@ public class SessionDataStore {
         }
 
         return registeredApiClients.get(sessionId);
+    }
+
+    public static MarketDataFeedV3Client getMarketDataFeedV3Client(String sessionId) {
+        return registeredMarketDataClients.get(sessionId);
     }
 
     public static void registerMarketDataFeedV3Client(String sessionId) {
@@ -49,7 +54,10 @@ public class SessionDataStore {
     }
 
     public static void deRegisterMarketDataFeedV3Client(String sessionId) {
-        registeredMarketDataClients.remove(sessionId).disconnect();
+        var client = registeredMarketDataClients.remove(sessionId);
+        if (nonNull(client)) {
+            client.disconnect();
+        }
     }
 
     public static void deRegisterPositionFeedClient(String sessionId) {

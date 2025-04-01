@@ -104,6 +104,8 @@ public class MarketDataFeedV3Client {
 
     public void onClose(int i, String s) {
         log.info(":::: Closed MarketDataV3Websocket :::: {}, {}", i, s);
+        this.streamer.disconnect();
+        SessionDataStore.deRegisterMarketDataFeedV3Client(sessionId);
     }
 
     public void onError(Throwable e) {
@@ -164,5 +166,8 @@ public class MarketDataFeedV3Client {
 
     public void fetchPositions() {
         portfolioWs.fetchPositions(streamer);
+    }
+    public void fetchHoldings() {
+        portfolioWs.fetchHoldings(streamer);
     }
 }

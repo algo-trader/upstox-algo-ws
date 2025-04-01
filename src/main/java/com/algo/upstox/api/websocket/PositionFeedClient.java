@@ -7,6 +7,8 @@ import com.upstox.feeder.PortfolioDataStreamer;
 import com.upstox.feeder.PositionUpdate;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Optional;
+
 import static com.algo.upstox.api.websocket.SessionDataStore.getApiClient;
 
 @Slf4j
@@ -52,6 +54,11 @@ public class PositionFeedClient {
 
     private void onOrderUpdate(OrderUpdate orderUpdate) {
         log.info("onOrderUpdate: {}", orderUpdate);
+        Optional.ofNullable(SessionDataStore.getMarketDataFeedV3Client(sessionId))
+                .ifPresent(client -> {
+                    client.fetchPositions();
+                    client.fetchHoldings();
+                });
     }
 
     private void onHoldingUpdate(HoldingUpdate holdingUpdate) {
