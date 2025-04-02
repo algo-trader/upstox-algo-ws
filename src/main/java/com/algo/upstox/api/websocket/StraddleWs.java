@@ -23,7 +23,9 @@ import static com.algo.upstox.common.config.ApplicationContextProvider.getBean;
 import static com.algo.upstox.common.model.AlertTypeEnum.CROSSING_DOWN;
 import static com.algo.upstox.common.model.AlertTypeEnum.CROSSING_UP;
 import static com.algo.upstox.common.model.AlertTypeEnum.INSTRUMENT_COMPARISON;
+import static com.algo.upstox.common.util.AppUtil.currentDateAsString;
 import static com.algo.upstox.common.util.AppUtil.formattedDouble;
+import static java.util.Objects.isNull;
 
 @Slf4j
 public class StraddleWs {
@@ -122,16 +124,47 @@ public class StraddleWs {
                 }
             }
 
-//            log.info("Straddle Total Premium {}", straddle.getTotalPremium());
-            straddleMessage.setTotalPremium(newSum);
-            straddleMessage.getStraddle().setTotalPremium(straddle.getTotalPremium());
-            straddle.setTotalPremium(newSum);
-
             if (prevSum != 0) {
                 straddleMessage.setDiff(newSum - prevSum);
             }
+
+            var hlMap = straddle.getDayHighLowMap();
+            if (isNull(hlMap)) {
+                straddleTotalPremiumService.updateTodayHighLow(straddle, newSum, newSum);
+                setHlMap(straddle);
+            } else {
+                var hlData = hlMap.get(currentDateAsString());
+                if (isNull(hlData)) {
+                    straddleTotalPremiumService.updateTodayHighLow(straddle, newSum, newSum);
+                    setHlMap(straddle);
+                } else {
+                    var high = hlData.getHigh();
+                    var low = hlData.getLow();
+                    if (newSum > high) {
+                        straddleTotalPremiumService.updateTodayHighLow(straddle, newSum, low);
+                        setHlMap(straddle);
+                    }
+                    if (newSum < low) {
+                        straddleTotalPremiumService.updateTodayHighLow(straddle, high, newSum);
+                        setHlMap(straddle);
+                    }
+                }
+            }
+//            log.info("Straddle Total Premium {}", straddle.getTotalPremium());
+            straddleMessage.setTotalPremium(newSum);
+            straddleMessage.getStraddle().setTotalPremium(straddle.getTotalPremium());
+            straddleMessage.getStraddle().setDayHighLowMap(straddle.getDayHighLowMap());
+            straddle.setTotalPremium(newSum);
+
             websocketMessageEmitter.emitStraddleLtp(straddleMessage, sessionId);
         });
+    }
+
+    void setHlMap(StraddleStrikeDto straddle) {
+        straddleTotalPremiumService.getStraddleStrike(sessionId, straddle.getIndex())
+                        .ifPresent(fetched -> {
+                            straddle.setDayHighLowMap(fetched.getDayHighLowMap());
+                        });
     }
 
     static double getLtp(MarketUpdateV3 marketData, String instrumentKey) {
