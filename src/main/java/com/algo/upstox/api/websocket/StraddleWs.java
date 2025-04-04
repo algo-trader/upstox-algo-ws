@@ -162,9 +162,9 @@ public class StraddleWs {
 
     void setHlMap(StraddleStrikeDto straddle) {
         straddleTotalPremiumService.getStraddleStrike(sessionId, straddle.getIndex())
-                        .ifPresent(fetched -> {
-                            straddle.setDayHighLowMap(fetched.getDayHighLowMap());
-                        });
+                .ifPresent(fetched -> {
+                    straddle.setDayHighLowMap(fetched.getDayHighLowMap());
+                });
     }
 
     static double getLtp(MarketUpdateV3 marketData, String instrumentKey) {
