@@ -9,7 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
 
+import static com.algo.upstox.api.websocket.SessionDataStore.deRegisterPositionFeedClient;
 import static com.algo.upstox.api.websocket.SessionDataStore.getApiClient;
+import static java.util.Objects.isNull;
 
 @Slf4j
 public class PositionFeedClient {
@@ -17,10 +19,15 @@ public class PositionFeedClient {
     private final PortfolioDataStreamer streamer;
 
     public static PositionFeedClient createPositionFeedClient(String sessionId) {
-        return new PositionFeedClient(sessionId);
+        var client = SessionDataStore.getPositionFeedClient(sessionId);
+        if (isNull(client)) {
+            return new PositionFeedClient(sessionId);
+        }
+        return client;
     }
 
     private PositionFeedClient(String sessionId) {
+        log.info(":::: Creating PositionFeedClient ::::");
         this.sessionId = sessionId;
         this.streamer = initiateStreamer();
 
@@ -53,7 +60,7 @@ public class PositionFeedClient {
     }
 
     private void onOrderUpdate(OrderUpdate orderUpdate) {
-        log.info("onOrderUpdate: {}", orderUpdate);
+        log.info("::: PositionFeedClient onOrderUpdate ::: {}", orderUpdate);
         Optional.ofNullable(SessionDataStore.getMarketDataFeedV3Client(sessionId))
                 .ifPresent(client -> {
                     client.fetchPositions();
@@ -71,10 +78,12 @@ public class PositionFeedClient {
 
     public void onClose(int i, String s) {
         log.info("::::PositionFeedClient :: onClose:::: {}", s);
+        deRegisterPositionFeedClient(sessionId);
     }
 
     public void onError(Throwable e) {
         log.error("::::PositionFeedClient :: ERROR::::", e);
+        deRegisterPositionFeedClient(sessionId);
     }
 
     public void disconnect() {

@@ -11,9 +11,12 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.stream.Collectors;
 
+import static com.algo.upstox.api.websocket.SessionDataStore.deRegisterMarketDataFeedV3Client;
 import static com.algo.upstox.api.websocket.SessionDataStore.getApiClient;
+import static com.algo.upstox.api.websocket.SessionDataStore.getMarketDataFeedV3Client;
 import static com.algo.upstox.common.config.ApplicationContextProvider.getBean;
 import static com.upstox.feeder.constants.Mode.FULL;
+import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 
 @Slf4j
@@ -35,11 +38,15 @@ public class MarketDataFeedV3Client {
     private final MarketDataStreamerV3 streamer;
 
     public static MarketDataFeedV3Client createMarketDataFeedV3Client(String sessionId) {
-        log.info(":::: Creating NEW Market Data Feed V3 Client");
-        return new MarketDataFeedV3Client(sessionId);
+        var existing = getMarketDataFeedV3Client(sessionId);
+        if (isNull(existing)) {
+            return new MarketDataFeedV3Client(sessionId);
+        }
+        return existing;
     }
 
     private MarketDataFeedV3Client(String sessionId) {
+        log.info(":::: Creating NEW Market Data Feed V3 Client ::::");
         this.sessionId = sessionId;
         setConditionalTradeWs();
         setStraddleWs();
@@ -104,12 +111,12 @@ public class MarketDataFeedV3Client {
 
     public void onClose(int i, String s) {
         log.info(":::: Closed MarketDataV3Websocket :::: {}, {}", i, s);
-        this.streamer.disconnect();
-        SessionDataStore.deRegisterMarketDataFeedV3Client(sessionId);
+        deRegisterMarketDataFeedV3Client(sessionId);
     }
 
     public void onError(Throwable e) {
         log.error("::: MarketDataV3Websocket Error ::: {}", e.getMessage(), e);
+        deRegisterMarketDataFeedV3Client(sessionId);
     }
 
     private void sendSubscriptionRequest() {

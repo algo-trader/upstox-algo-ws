@@ -201,7 +201,7 @@ public class WebSocketServerManager {
                             try {
                                 String sessionId = (String) ((List<?>) h.get(websocketAppConfig.getHeaderUserKey())).get(0);
                                 var user = authService.getLoggedInUser(sessionId);
-                                log.info("API connected via user {}", user.getUserName());
+                                log.info(":::: API connected via user {} ::::", user.getUserName());
                                 websocketService.initiateAllWebsockets(user.getSessionId());
                                 return true;
                             } catch (Exception e) {

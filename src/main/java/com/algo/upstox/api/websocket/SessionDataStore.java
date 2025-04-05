@@ -32,18 +32,18 @@ public class SessionDataStore {
         return registeredMarketDataClients.get(sessionId);
     }
 
+    public static PositionFeedClient getPositionFeedClient(String sessionId) {
+        return registeredPositionFeedClients.get(sessionId);
+    }
+
     public static void registerMarketDataFeedV3Client(String sessionId) {
 
         if (!registeredMarketDataClients.containsKey(sessionId)) {
-            registeredMarketDataClients.put(sessionId, createMarketDataFeedV3Client(sessionId));
-        } else {
-            registeredMarketDataClients.get(sessionId).disconnect();
             registeredMarketDataClients.put(sessionId, createMarketDataFeedV3Client(sessionId));
         }
     }
 
     public static void registerPositionFeedClient(String sessionId) {
-
         if (!registeredPositionFeedClients.containsKey(sessionId)) {
             registeredPositionFeedClients.put(sessionId, createPositionFeedClient(sessionId));
         }
@@ -61,7 +61,10 @@ public class SessionDataStore {
     }
 
     public static void deRegisterPositionFeedClient(String sessionId) {
-        registeredPositionFeedClients.remove(sessionId).disconnect();
+        var client = registeredPositionFeedClients.remove(sessionId);
+        if (nonNull(client)) {
+            client.disconnect();
+        }
     }
 
     public static void runTaskOnMarketDataFeedV3Client(String sessionId, Consumer<MarketDataFeedV3Client> consumer) {
