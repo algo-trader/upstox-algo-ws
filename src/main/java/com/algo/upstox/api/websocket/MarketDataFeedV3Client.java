@@ -112,11 +112,13 @@ public class MarketDataFeedV3Client {
     public void onClose(int i, String s) {
         log.info(":::: Closed MarketDataV3Websocket :::: {}, {}", i, s);
         deRegisterMarketDataFeedV3Client(sessionId);
+        disconnect();
     }
 
     public void onError(Throwable e) {
         log.error("::: MarketDataV3Websocket Error ::: {}", e.getMessage(), e);
         deRegisterMarketDataFeedV3Client(sessionId);
+        disconnect();
     }
 
     private void sendSubscriptionRequest() {

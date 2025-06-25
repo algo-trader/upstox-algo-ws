@@ -79,11 +79,13 @@ public class PositionFeedClient {
     public void onClose(int i, String s) {
         log.info("::::PositionFeedClient :: onClose:::: {}", s);
         deRegisterPositionFeedClient(sessionId);
+        disconnect();
     }
 
     public void onError(Throwable e) {
         log.error("::::PositionFeedClient :: ERROR::::", e);
         deRegisterPositionFeedClient(sessionId);
+        disconnect();
     }
 
     public void disconnect() {

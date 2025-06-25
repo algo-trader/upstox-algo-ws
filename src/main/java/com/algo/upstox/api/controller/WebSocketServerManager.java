@@ -6,11 +6,13 @@ import com.algo.upstox.api.model.AlertDto;
 import com.algo.upstox.api.websocket.WebsocketMessageEmitter;
 import com.algo.upstox.api.websocket.WebsocketService;
 import com.algo.upstox.common.config.AppPropertyConfig.WebsocketAppConfig;
+import com.algo.upstox.common.events.UserLoginEventDto;
 import com.algo.upstox.common.model.AlertTypeEnum;
 import com.algo.upstox.common.model.WSMessageDto;
 import com.algo.upstox.common.model.platform.IndexEnum;
 import com.algo.upstox.common.service.AuthService;
 import com.algo.upstox.common.service.EventService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -35,6 +37,10 @@ import static com.algo.upstox.api.util.WSConstants.NATIVE_HEADERS_KEY;
 import static com.algo.upstox.api.util.WSConstants.SESSION_ID_KEY;
 import static com.algo.upstox.api.util.WSConstants.SIMP_SESSION_ID_KEY;
 import static com.algo.upstox.api.util.WSConstants.USER_KEY;
+import static com.algo.upstox.api.websocket.SessionDataStore.deRegisterMarketDataFeedV3Client;
+import static com.algo.upstox.api.websocket.SessionDataStore.deRegisterPositionFeedClient;
+import static com.algo.upstox.api.websocket.SessionDataStore.getMarketDataFeedV3Client;
+import static com.algo.upstox.api.websocket.SessionDataStore.getPositionFeedClient;
 import static com.algo.upstox.common.constants.MessageConstants.INDEX;
 import static com.algo.upstox.common.constants.MessageConstants.TRADE_ID;
 import static java.util.Objects.isNull;
@@ -51,6 +57,7 @@ public class WebSocketServerManager {
     private final WebsocketAppConfig websocketAppConfig;
     private final WebsocketMessageEmitter messageEmitter;
     private final EventService eventService;
+    private final ObjectMapper objectMapper;
 
     @MessageMapping("/user/tradeData")
     public void notificationFromUser(@Header(SESSION_ID_KEY) String sessionId, GenericMessage message) {
@@ -81,10 +88,10 @@ public class WebSocketServerManager {
                 var sessionId = message.getPayload().getSessionId();
                 websocketService.loadStraddleTotalPremiums(sessionId, IndexEnum.valueOf(index));
                 messageEmitter.emitAlertMessage(AlertDto.builder()
-                                .alertText("Straddle created!!")
-                                .alertType(AlertTypeEnum.STRADDLE_CREATE)
-                                .alertDisplayType(AlertDisplayTypeEnum.SUCCESS.getClassNames())
-                                .timeout(5000)
+                        .alertText("Straddle created!!")
+                        .alertType(AlertTypeEnum.STRADDLE_CREATE)
+                        .alertDisplayType(AlertDisplayTypeEnum.SUCCESS.getClassNames())
+                        .timeout(5000)
                         .build(), sessionId);
 
             }
@@ -118,7 +125,7 @@ public class WebSocketServerManager {
             }
             case EVENT_PUBLISH -> {
                 log.info("Notification received :::: New event published");
-                var data = (LinkedHashMap)message.getPayload().getBody();
+                var data = (LinkedHashMap) message.getPayload().getBody();
                 var allEvents = eventService.getEvents(authService.getLoggedInUser(message.getPayload().getSessionId()).getEmail());
                 messageEmitter.emitEventPublished(allEvents, message.getPayload().getSessionId());
 
@@ -131,6 +138,22 @@ public class WebSocketServerManager {
                 log.info("Notification received :::: User has new position");
                 websocketService.fetchPositions(message.getPayload().getSessionId());
             }
+            case USER_LOGIN -> {
+                log.info("Notification received :::: New user session");
+                Optional.ofNullable(message.getPayload())
+                        .map(obj -> obj.getBody())
+                        .map(obj -> objectMapper.convertValue(obj, UserLoginEventDto.class))
+                        .ifPresent(user -> {
+                            log.info("::: Clearing old session data for ID {} ::::", user.getOldSessionId());
+                            Optional.ofNullable(getMarketDataFeedV3Client(user.getOldSessionId()))
+                                    .ifPresent(client -> client.disconnect());
+                            Optional.ofNullable(getPositionFeedClient(user.getOldSessionId()))
+                                    .ifPresent(client -> client.disconnect());
+                            deRegisterMarketDataFeedV3Client(user.getOldSessionId());
+                            deRegisterPositionFeedClient(user.getOldSessionId());
+                            websocketService.initiateAllWebsockets(user.getSessionId());
+                        });
+            }
         }
     }
 
@@ -138,7 +161,7 @@ public class WebSocketServerManager {
     public void handleSessionConnected(SessionConnectEvent event) {
         log.info("New client has connected. {}", event.getSource());
 
-        if (checkAppConnectAndInitiate(event)) {
+        if (checkAppConnectAndInitiate(event)) { // initiates WS
             log.info("API has connected");
             return;
         }
@@ -152,7 +175,7 @@ public class WebSocketServerManager {
 
         log.info("Client details - SimpSession ID - {}, UserSessionId - {}", simpSessionId, userSessionId);
 
-        websocketService.initiateAllWebsockets(userSessionId);
+         websocketService.initiateAllWebsockets(userSessionId);
         webSocketLoggedInUserService.updateSessionDetails(userSessionId, simpSessionId);
     }
 
@@ -202,7 +225,7 @@ public class WebSocketServerManager {
                                 String sessionId = (String) ((List<?>) h.get(websocketAppConfig.getHeaderUserKey())).get(0);
                                 var user = authService.getLoggedInUser(sessionId);
                                 log.info(":::: API connected via user {} ::::", user.getUserName());
-                                websocketService.initiateAllWebsockets(user.getSessionId());
+                                //websocketService.initiateAllWebsockets(user.getSessionId());
                                 return true;
                             } catch (Exception e) {
                                 log.error("Unable to authenticate user", e);
