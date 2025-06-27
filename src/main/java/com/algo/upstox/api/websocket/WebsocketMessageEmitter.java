@@ -59,6 +59,7 @@ public class WebsocketMessageEmitter {
     public static final String DESTINATION_HOLDING_SUM = "/topic/messages/holding-sum/";
     public static final String DESTINATION_POSITION_FETCHED = "/topic/messages/position-fetched/";
     public static final String DESTINATION_POSITION_UPDATE = "/topic/messages/position-update/";
+    public static final String DESTINATION_OI_DATA = "/topic/messages/oi-data/";
 
     private static final Map<String, LtpcFeedMessage> ltpMap = new HashMap<>();
 
@@ -163,6 +164,10 @@ public class WebsocketMessageEmitter {
 
     public void emitAlertTriggered(String sessionId) {
         emitMessage(null, DESTINATION_ALERT_TRIGGERED, MessageCategoryEnum.ALERT_TRIGGERED, sessionId);
+    }
+
+    public void emitOIData(String sessionId, Object oiData) {
+        emitMessage(oiData, DESTINATION_OI_DATA, MessageCategoryEnum.OPEN_INTEREST, sessionId);
     }
 
     private static LTPC buildLtpc(MarketFullFeed marketFullFeed) {

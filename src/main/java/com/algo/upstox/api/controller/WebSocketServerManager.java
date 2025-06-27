@@ -8,6 +8,7 @@ import com.algo.upstox.api.websocket.WebsocketService;
 import com.algo.upstox.common.config.AppPropertyConfig.WebsocketAppConfig;
 import com.algo.upstox.common.events.UserLoginEventDto;
 import com.algo.upstox.common.model.AlertTypeEnum;
+import com.algo.upstox.common.model.OpenInterestResponseDto;
 import com.algo.upstox.common.model.WSMessageDto;
 import com.algo.upstox.common.model.platform.IndexEnum;
 import com.algo.upstox.common.service.AuthService;
@@ -152,6 +153,18 @@ public class WebSocketServerManager {
                             deRegisterMarketDataFeedV3Client(user.getOldSessionId());
                             deRegisterPositionFeedClient(user.getOldSessionId());
                             websocketService.initiateAllWebsockets(user.getSessionId());
+                        });
+            }
+            case OI_DATA -> {
+                log.info("Notification received :::: Open Interest Data");
+                var sessionId = message.getPayload().getSessionId();
+
+                Optional.ofNullable(message.getPayload())
+                        .map(obj -> obj.getBody())
+                        .map(obj -> objectMapper.convertValue(obj, OpenInterestResponseDto.class))
+                        .ifPresent(oiData -> {
+                            log.info("::: Publishing OI Data ::::", oiData);
+                            messageEmitter.emitOIData(sessionId, oiData);
                         });
             }
         }
