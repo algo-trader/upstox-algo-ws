@@ -145,7 +145,7 @@ public class WebSocketServerManager {
                         .map(obj -> obj.getBody())
                         .map(obj -> objectMapper.convertValue(obj, UserLoginEventDto.class))
                         .ifPresent(user -> {
-                            log.info("::: Clearing old session data for ID {} ::::", user.getOldSessionId());
+                            log.info("::: Clearing old session data for ID {} - Session ID {} ::::", user.getOldSessionId(), user.getSessionId());
                             Optional.ofNullable(getMarketDataFeedV3Client(user.getOldSessionId()))
                                     .ifPresent(client -> client.disconnect());
                             Optional.ofNullable(getPositionFeedClient(user.getOldSessionId()))

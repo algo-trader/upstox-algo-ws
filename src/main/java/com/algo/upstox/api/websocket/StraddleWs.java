@@ -15,6 +15,7 @@ import com.upstox.feeder.MarketUpdateV3.LTPC;
 import com.upstox.feeder.MarketUpdateV3.MarketFullFeed;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.LocalTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,6 +32,7 @@ import static com.algo.upstox.common.model.AlertTypeEnum.INSTRUMENT_COMPARISON;
 import static com.algo.upstox.common.model.documents.ShortStraddleStatusEnum.NEW;
 import static com.algo.upstox.common.model.documents.ShortStraddleStatusEnum.RUNNING;
 import static com.algo.upstox.common.util.AppUtil.currentDateAsString;
+import static com.algo.upstox.common.util.AppUtil.currentTime;
 import static com.algo.upstox.common.util.AppUtil.formattedDouble;
 import static java.util.Objects.isNull;
 
@@ -64,6 +66,7 @@ public class StraddleWs {
 
     void deleteStraddle(IndexEnum index) {
         straddleTotalPremiumService.deleteStraddleStrike(sessionId, index);
+        straddleMessage.setStraddle(null);
         straddleMap.remove(index);
     }
 
@@ -200,9 +203,8 @@ public class StraddleWs {
                             var request = new ShortStraddleRequestDto();
                             request.setEntryPrice(ltp);
                             request.setQuantity(ss.getQuantity());
-                            var updated = straddleTotalPremiumService.tradeShortStraddle(sessionId,
-                                    straddle.getId(), request);
-                            straddle.setShortStraddles(updated.getShortStraddles());
+                            straddleTotalPremiumService.tradeShortStraddle(sessionId,
+                                    straddle, request);
                         }
                     });
         }
@@ -210,15 +212,14 @@ public class StraddleWs {
             shortStraddleStream(straddle).filter(runningTradePredicate)
                     .findAny()
                     .ifPresent(ss -> {
-                        if (ltp >= ss.getExitPrice()) {
+                        if (ltp >= ss.getExitPrice() || isClosingTime()) {
                             log.info("Short straddle exit condition matched");
                             var request = new ShortStraddleRequestDto();
                             request.setSquaredOffPrice(ltp);
                             request.setQuantity(ss.getQuantity());
 
-                            var updated = straddleTotalPremiumService.exitShortStraddle(sessionId,
-                                    straddle.getId(), request);
-                            straddle.setShortStraddles(updated.getShortStraddles());
+                            straddleTotalPremiumService.exitShortStraddle(sessionId,
+                                    straddle, request);
                         }
                     });
         }
@@ -228,5 +229,9 @@ public class StraddleWs {
         return Optional.ofNullable(straddle.getShortStraddles())
                 .orElseGet(Collections::emptyList)
                 .stream();
+    }
+
+    private boolean isClosingTime() {
+        return currentTime().isAfter(LocalTime.of(15, 20)) && currentTime().isBefore(LocalTime.of(15, 29));
     }
 }
