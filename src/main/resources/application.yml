@@ -15,7 +15,7 @@ spring:
       port: 27017
       database: algo
 server:
-  port: 8082
+  port: 8080
 logging:
   level:
     com.algo: ${LOGGING_LEVEL_COM_ALGO:INFO}

@@ -1,6 +1,6 @@
 spring:
   data:
     mongodb:
-      host: localhost
-      port: 27017
-      database: algo-live
+      uri: ${DB_CONN_STRING}
+      database: ${DB_SCHEMA_NAME}
+      username: ${DB_USER_ARN}
