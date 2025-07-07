@@ -17,5 +17,7 @@ public class PositionDataMessage {
     private int openCount;
     private int closeCount;
     private double totalPnL;
+    private double dayHigh;
+    private double dayLow;
     private List<PositionDto> positions;
 }

@@ -13,6 +13,7 @@ import com.upstox.feeder.MarketUpdateV3.Feed;
 import com.upstox.feeder.MarketUpdateV3.FullFeed;
 import com.upstox.feeder.MarketUpdateV3.LTPC;
 import com.upstox.feeder.MarketUpdateV3.MarketFullFeed;
+import com.upstox.feeder.OrderUpdate;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalTime;
@@ -30,6 +31,7 @@ import static com.algo.upstox.common.model.AlertTypeEnum.CROSSING_DOWN;
 import static com.algo.upstox.common.model.AlertTypeEnum.CROSSING_UP;
 import static com.algo.upstox.common.model.AlertTypeEnum.INSTRUMENT_COMPARISON;
 import static com.algo.upstox.common.model.documents.ShortStraddleStatusEnum.NEW;
+import static com.algo.upstox.common.model.documents.ShortStraddleStatusEnum.ORDER_PLACED;
 import static com.algo.upstox.common.model.documents.ShortStraddleStatusEnum.RUNNING;
 import static com.algo.upstox.common.util.AppUtil.currentDateAsString;
 import static com.algo.upstox.common.util.AppUtil.currentTime;
@@ -161,7 +163,13 @@ public class StraddleWs {
                 }
             }
 //            log.info("Straddle Total Premium {}", straddle.getTotalPremium());
-            performTrading(straddle, newSum);
+
+            try {
+                performTrading(straddle, newSum);
+            } catch (Exception e) {
+                log.error("Trade not placed - {}", e.getMessage());
+            }
+
             straddleMessage.setTotalPremium(newSum);
             straddleMessage.getStraddle().setTotalPremium(straddle.getTotalPremium());
             straddleMessage.getStraddle().setDayHighLowMap(straddle.getDayHighLowMap());
@@ -233,5 +241,32 @@ public class StraddleWs {
 
     private boolean isClosingTime() {
         return currentTime().isAfter(LocalTime.of(15, 20)) && currentTime().isBefore(LocalTime.of(15, 29));
+    }
+
+    public void updateStraddleOnOrder(OrderUpdate order) {
+        log.info("Order with order id {} completed", order.getOrderId());
+        Optional.ofNullable(straddleMessage.getStraddle())
+                .ifPresent(straddle -> {
+                    var ce = straddle.getCeInstrument();
+                    var pe = straddle.getPeInstrument();
+
+                    Optional.ofNullable(straddle.getShortStraddles())
+                            .orElseGet(Collections::emptyList)
+                            .stream()
+                            .filter(ss -> ORDER_PLACED == ss.getStatus())
+                            .findFirst()
+                            .ifPresent(ss -> {
+                                if (ce.getInstrumentKey().equals(order.getInstrumentKey())
+                                        || pe.getInstrumentKey().equals(order.getInstrumentKey())) {
+                                    var existingPrice = ss.getEntryPrice();
+                                    ss.setEntryPrice(existingPrice + order.getAveragePrice());
+                                    if (existingPrice > 0) {
+                                        ss.setStatus(RUNNING);
+                                    }
+                                }
+                                straddleTotalPremiumService.updateStraddle(straddle);
+                                websocketMessageEmitter.emitStraddleLtp(straddleMessage, sessionId);
+                            });
+                });
     }
 }

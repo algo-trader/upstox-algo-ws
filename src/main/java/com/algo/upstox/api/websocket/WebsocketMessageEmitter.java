@@ -71,7 +71,7 @@ public class WebsocketMessageEmitter {
     }
 
     public void emitSubscriptionNotify(String sessionId) {
-        log.info("Notifying user for subscription");
+        log.debug("Notifying user for subscription");
         emitMessage("", DESTINATION_SUBSCRIBE_NOTIFY, MessageCategoryEnum.SUBSCRIBE, sessionId);
     }
 

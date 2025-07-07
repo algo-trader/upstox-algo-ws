@@ -65,6 +65,7 @@ public class PositionFeedClient {
                 .ifPresent(client -> {
                     client.fetchPositions();
                     client.fetchHoldings();
+                    client.updateStraddle(orderUpdate);
                 });
     }
 

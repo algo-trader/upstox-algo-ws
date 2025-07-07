@@ -8,6 +8,7 @@ import com.algo.upstox.common.model.documents.UserHoldingDto;
 import com.algo.upstox.common.model.documents.UserPositionDataDto;
 import com.algo.upstox.common.service.PortfolioService;
 import com.algo.upstox.common.service.UserSubscriptionService;
+import com.google.common.util.concurrent.AtomicDouble;
 import com.upstox.feeder.MarketDataStreamerV3;
 import com.upstox.feeder.MarketUpdateV3;
 import com.upstox.feeder.constants.Mode;
@@ -35,6 +36,8 @@ public class PortfolioWs {
     private final Map<String, Float> holdingLtpMap = new HashMap<>();
     private final Map<String, Float> positionLtpMap = new HashMap<>();
     private UserPositionDataDto userPositions;
+    private AtomicDouble dayHigh;
+    private AtomicDouble dayLow;
 
     public PortfolioWs(String sessionId) {
         this.sessionId = sessionId;
@@ -106,11 +109,29 @@ public class PortfolioWs {
         var total = positionLtpMap.values().stream().mapToDouble(f -> f).sum();
         var openPositions = userPositions.getPositions().stream().filter(position -> position.getQuantity() != 0).count();
         var closePositions = userPositions.getPositions().stream().filter(position -> position.getQuantity() == 0).count();
+
+        if (isNull(dayHigh)) {
+            dayHigh = new AtomicDouble();
+        }
+
+        if (isNull(dayLow)) {
+            dayLow = new AtomicDouble();
+        }
+
+        if (dayHigh.get() == 0 || total > dayHigh.get()) {
+            dayHigh.set(total);
+        }
+        if (dayLow.get() == 0 || total < dayLow.get()) {
+            dayLow.set(total);
+        }
+
         websocketMessageEmitter.emitPositionUpdateMessage(PositionDataMessage.builder()
                 .totalPnL(total)
                 .openCount((int) openPositions)
                 .closeCount((int) closePositions)
                 .positions(userPositions.getPositions())
+                .dayHigh(dayHigh.get())
+                .dayLow(dayLow.get())
                 .build(), sessionId);
     }
 

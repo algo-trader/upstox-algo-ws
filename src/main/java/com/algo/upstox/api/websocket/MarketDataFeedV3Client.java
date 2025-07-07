@@ -6,6 +6,7 @@ import com.algo.upstox.common.model.platform.IndexEnum;
 import com.algo.upstox.common.service.UserSubscriptionService;
 import com.upstox.feeder.MarketDataStreamerV3;
 import com.upstox.feeder.MarketUpdateV3;
+import com.upstox.feeder.OrderUpdate;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -15,6 +16,7 @@ import static com.algo.upstox.api.websocket.SessionDataStore.deRegisterMarketDat
 import static com.algo.upstox.api.websocket.SessionDataStore.getApiClient;
 import static com.algo.upstox.api.websocket.SessionDataStore.getMarketDataFeedV3Client;
 import static com.algo.upstox.common.config.ApplicationContextProvider.getBean;
+import static com.algo.upstox.common.constants.AppConstants.ORDER_STATUS_COMPLETE;
 import static com.upstox.feeder.constants.Mode.FULL;
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
@@ -178,5 +180,12 @@ public class MarketDataFeedV3Client {
     }
     public void fetchHoldings() {
         portfolioWs.fetchHoldings(streamer);
+    }
+
+    public void updateStraddle(OrderUpdate order) {
+        log.info("Order update received for order ID {}, status - {}", order.getOrderId(), order.getStatus());
+        if (ORDER_STATUS_COMPLETE.equals(order.getStatus())) {
+            straddleWs.updateStraddleOnOrder(order);
+        }
     }
 }

@@ -121,11 +121,11 @@ public class WebSocketServerManager {
                         .build(), sessionId);
             }
             case SUBSCRIBE -> {
-                log.info("Notification received :::: Updated subscription");
+                log.debug("Notification received :::: Updated subscription");
                 websocketService.refreshSubscription(message.getPayload().getSessionId());
             }
             case EVENT_PUBLISH -> {
-                log.info("Notification received :::: New event published");
+                log.debug("Notification received :::: New event published");
                 var data = (LinkedHashMap) message.getPayload().getBody();
                 var allEvents = eventService.getEvents(authService.getLoggedInUser(message.getPayload().getSessionId()).getEmail());
                 messageEmitter.emitEventPublished(allEvents, message.getPayload().getSessionId());
@@ -156,14 +156,14 @@ public class WebSocketServerManager {
                         });
             }
             case OI_DATA -> {
-                log.info("Notification received :::: Open Interest Data");
+                log.debug("Notification received :::: Open Interest Data");
                 var sessionId = message.getPayload().getSessionId();
 
                 Optional.ofNullable(message.getPayload())
                         .map(obj -> obj.getBody())
                         .map(obj -> objectMapper.convertValue(obj, OpenInterestResponseDto.class))
                         .ifPresent(oiData -> {
-                            log.info("::: Publishing OI Data ::::", oiData);
+                            log.debug("::: Publishing OI Data ::::", oiData);
                             messageEmitter.emitOIData(sessionId, oiData);
                         });
             }

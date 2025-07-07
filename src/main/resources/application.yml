@@ -34,6 +34,11 @@ app:
       market-start-time: "09:15:00"
       market-end-time: "15:30:00"
       login-refresh-time: "06:00:00"
+      sandbox:
+        api-key: ${APP_SANDBOX_API_KEY:NOT_SET}
+        sandbox-access-token: ${APP_SANDBOX_ACCESS_TOKEN:NOT_SET}
+        api-secret: ${APP_SANDBOX_SECRET:NOT_SET}
+        base-host: ${APP_SANDBOX_HOST:NOT_SET}
   config:
     ws:
       connect-url: ${WS_CONNECT_URL:unknown}
